@@ -1,0 +1,11 @@
+{
+  "name": "VINYL ARCHIVE",
+  "short_name": "VINYL",
+  "description": "レコードの所蔵・写真・国内中古相場を管理",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2eee5",
+  "theme_color": "#0d0d0d",
+  "orientation": "portrait-primary"
+}

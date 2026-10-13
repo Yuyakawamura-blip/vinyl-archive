@@ -4,6 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0c0c0c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Vinyl Archive">
   <title>VINYL ARCHIVE — レコード所蔵管理</title>
   <meta name="description" content="レコード写真、作品情報、コンディション、中古市場価格をまとめて管理する個人コレクションアプリ。">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,6 +14,9 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Noto+Sans+JP:wght@400;500;700&family=Playfair+Display:ital,wght@0,600;1,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="market.css">
+  <link rel="stylesheet" href="camera.css">
+  <link rel="stylesheet" href="list-view.css">
+  <link rel="manifest" href="manifest.webmanifest">
 </head>
 <body>
   <header class="topbar">
@@ -28,7 +34,7 @@
     <section class="stats" id="stats"></section>
 
     <section id="collectionView">
-      <div class="section-head"><div><p class="eyebrow">YOUR SHELF</p><h2>コレクション</h2></div><div class="tools"><label class="search">⌕ <input id="searchInput" placeholder="アーティスト、タイトル、年代で検索"></label><select id="sortSelect"><option value="added">追加順</option><option value="artist">アーティスト順</option><option value="year">年代順</option><option value="price">相場の高い順</option></select></div></div>
+      <div class="section-head"><div><p class="eyebrow">YOUR SHELF</p><h2>コレクション</h2></div><div class="tools"><label class="search">⌕ <input id="searchInput" placeholder="アーティスト、タイトル、年代で検索"></label><select id="sortSelect"><option value="added">追加順</option><option value="artist">アーティスト順</option><option value="year">年代順</option><option value="price">相場の高い順</option></select><div class="view-switch" aria-label="表示形式"><button class="active" id="gridViewBtn" title="グリッド表示">▦</button><button id="listViewBtn" title="リスト表示">☷</button></div></div></div>
       <div class="genre-row" id="genreRow"></div>
       <div class="grid" id="recordGrid"></div>
       <div class="empty hidden" id="emptyState"><div class="empty-disc"></div><h3>まだレコードがありません</h3><p>最初の一枚を追加して、あなたのアーカイブを始めましょう。</p><button class="add-btn" id="emptyAdd">＋ レコードを追加</button></div>
@@ -43,7 +49,12 @@
   <dialog id="addDialog">
     <form id="recordForm" method="dialog">
       <div class="dialog-head"><div><p class="eyebrow">ADD TO ARCHIVE</p><h2>レコードを追加</h2></div><button type="button" class="close" id="closeDialog">×</button></div>
-      <div class="upload-zone" id="uploadZone"><input type="file" id="coverInput" accept="image/*" hidden><img id="coverPreview" alt=""><div id="uploadPrompt"><div class="camera">▣</div><strong>ジャケット写真をアップロード</strong><span>クリックして写真を選択 · JPG / PNG</span></div></div>
+      <div class="camera-panel" id="cameraPanel">
+        <video id="cameraVideo" autoplay playsinline muted></video>
+        <canvas id="cameraCanvas" hidden></canvas>
+        <div class="camera-controls"><button type="button" class="secondary" id="closeCamera">キャンセル</button><button type="button" class="shutter" id="takePhoto" aria-label="撮影する"></button></div>
+      </div>
+      <div class="upload-zone" id="uploadZone"><input type="file" id="coverInput" accept="image/*" hidden><img id="coverPreview" alt=""><div id="uploadPrompt"><div class="camera">▣</div><strong>ジャケット写真</strong><span>アプリ内カメラで撮影、または既存写真を選択</span><div class="photo-actions"><button type="button" id="openCamera">カメラで撮影</button><button type="button" id="choosePhoto">写真を選択</button></div><small>アプリ内撮影は写真ライブラリに保存されません</small></div></div>
       <div class="lookup"><span>写真から候補検索（デモ）</span><button type="button" id="demoLookup">候補を検索</button></div>
       <div class="fields">
         <label>アーティスト名<input name="artist" required placeholder="例：Miles Davis"></label>
