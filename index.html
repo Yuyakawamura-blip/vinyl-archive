@@ -17,19 +17,21 @@
   <link rel="stylesheet" href="camera.css">
   <link rel="stylesheet" href="list-view.css">
   <link rel="stylesheet" href="tracks.css">
+  <link rel="stylesheet" href="news.css">
+  <link rel="stylesheet" href="batch.css">
   <link rel="manifest" href="manifest.webmanifest">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#">VINYL<span>ARCHIVE</span></a>
     <nav><button class="nav-link active" data-view="collection">COLLECTION</button><button class="nav-link" data-view="market">MARKET</button></nav>
-    <div class="top-actions"><button class="icon-btn" id="exportBtn" title="バックアップを書き出す">↗</button><button class="add-btn" id="openAdd">＋ レコードを追加</button></div>
+    <div class="top-actions"><button class="icon-btn" id="exportBtn" title="バックアップを書き出す">↗</button><button class="add-btn" id="openAdd">＋ 撮影・一括追加</button></div>
   </header>
 
   <main>
-    <section class="hero">
-      <div><p class="eyebrow">PRIVATE RECORD INDEX</p><h1>音の記憶を、<br><em>一枚ずつ。</em></h1><p class="lead">ジャケットを撮って、情報を整えて、価値の変化を眺める。<br>あなたのレコード棚のためのデジタル・アーカイブ。</p></div>
-      <div class="record-art" aria-hidden="true"><div class="vinyl"><span></span></div><div class="sleeve"><div class="sleeve-art">NIGHT<br>DRIVE</div><small>VA—001</small></div></div>
+    <section class="hero web-news" id="newsSection">
+      <div class="news-intro"><p class="eyebrow">COLLECTION NEWS DESK</p><h1>棚の向こうの、<br><em>新しい動き。</em></h1><p class="lead">所蔵レコードのアーティストや作品に関するニュースを、コレクションから探せます。<br>この欄はブラウザ版だけに表示されます。</p></div>
+      <div class="news-board"><div class="news-board-head"><span>LATEST FROM YOUR SHELF</span><small>外部ニュース検索</small></div><div class="news-list" id="newsList"></div></div>
     </section>
 
     <section class="stats" id="stats"></section>
@@ -50,11 +52,20 @@
   <dialog id="addDialog">
     <form id="recordForm" method="dialog">
       <div class="dialog-head"><div><p class="eyebrow">ADD TO ARCHIVE</p><h2>レコードを追加</h2></div><button type="button" class="close" id="closeDialog">×</button></div>
+      <section class="quick-capture" id="quickCapture">
+        <div class="quick-copy"><span class="quick-badge">FAST CAPTURE</span><h3>撮る。撮る。撮る。</h3><p>何枚でも連続撮影し、最後に一度だけまとめてアップロードします。</p></div>
+        <div class="quick-steps"><span><b>1</b>連続撮影</span><span><b>2</b>撮影完了</span><span><b>3</b>まとめてアップロード</span></div>
+        <div class="quick-actions"><button type="button" class="quick-camera" id="startBatchCamera">連続撮影を開始</button><button type="button" class="secondary" id="chooseBatchPhotos">写真をまとめて選択</button><input type="file" id="batchPhotoInput" accept="image/*" multiple hidden></div>
+        <div class="capture-queue" id="captureQueue"><p>まだ写真はありません</p></div>
+        <div class="queue-actions"><span id="queueCount">0枚</span><button type="button" class="add-btn" id="saveBatch" disabled>まとめてアップロード</button></div>
+        <p class="future-ai">AI自動入力（後日実装予定）：ジャケット画像からアーティスト名、タイトル、年代、A面・B面などを補完します。</p>
+      </section>
       <div class="camera-panel" id="cameraPanel">
         <video id="cameraVideo" autoplay playsinline muted></video>
         <canvas id="cameraCanvas" hidden></canvas>
-        <div class="camera-controls"><button type="button" class="secondary" id="closeCamera">キャンセル</button><button type="button" class="shutter" id="takePhoto" aria-label="撮影する"></button></div>
+        <div class="capture-status" id="captureStatus">0枚撮影</div><div class="camera-controls"><button type="button" class="secondary" id="closeCamera">キャンセル</button><button type="button" class="shutter" id="takePhoto" aria-label="撮影する"></button></div>
       </div>
+      <div class="manual-divider"><span>または1枚ずつ詳しく入力</span></div>
       <div class="upload-zone" id="uploadZone"><input type="file" id="coverInput" accept="image/*" hidden><img id="coverPreview" alt=""><div id="uploadPrompt"><div class="camera">▣</div><strong>ジャケット写真</strong><span>アプリ内カメラで撮影、または既存写真を選択</span><div class="photo-actions"><button type="button" id="openCamera">カメラで撮影</button><button type="button" id="choosePhoto">写真を選択</button></div><small>アプリ内撮影は写真ライブラリに保存されません</small></div></div>
       <div class="lookup"><span>写真から候補検索（デモ）</span><button type="button" id="demoLookup">候補を検索</button></div>
       <div class="fields">
@@ -73,7 +84,7 @@
       </div>
       <label>メモ<textarea name="notes" rows="3" placeholder="購入店、プレス情報、思い出など"></textarea></label>
       <p class="api-note">※ 音源URLが未入力の場合は、アーティスト名と曲名からYouTube／SoundCloud検索へ移動します。</p>
-      <div class="dialog-actions"><button type="button" class="secondary" id="cancelDialog">キャンセル</button><button class="add-btn" type="submit">コレクションに保存</button></div>
+      <div class="dialog-actions"><button type="button" class="secondary" id="cancelDialog">キャンセル</button><button class="add-btn" type="submit">手入力で保存</button></div>
     </form>
   </dialog>
 
