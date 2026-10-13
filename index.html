@@ -12,13 +12,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Noto+Sans+JP:wght@400;500;700&family=Playfair+Display:ital,wght@0,600;1,500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="market.css">
-  <link rel="stylesheet" href="camera.css">
-  <link rel="stylesheet" href="list-view.css">
-  <link rel="stylesheet" href="tracks.css">
-  <link rel="stylesheet" href="news.css">
-  <link rel="stylesheet" href="batch.css">
+  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="market.css?v=7">
+  <link rel="stylesheet" href="camera.css?v=7">
+  <link rel="stylesheet" href="list-view.css?v=7">
+  <link rel="stylesheet" href="tracks.css?v=7">
+  <link rel="stylesheet" href="news.css?v=7">
+  <link rel="stylesheet" href="batch.css?v=7">
   <link rel="manifest" href="manifest.webmanifest">
 </head>
 <body>
@@ -55,7 +55,9 @@
       <section class="quick-capture" id="quickCapture">
         <div class="quick-copy"><span class="quick-badge">FAST CAPTURE</span><h3>撮る。撮る。撮る。</h3><p>何枚でも連続撮影し、最後に一度だけまとめてアップロードします。</p></div>
         <div class="quick-steps"><span><b>1</b>連続撮影</span><span><b>2</b>撮影完了</span><span><b>3</b>まとめてアップロード</span></div>
-        <div class="quick-actions"><button type="button" class="quick-camera" id="startBatchCamera">連続撮影を開始</button><button type="button" class="secondary" id="chooseBatchPhotos">写真をまとめて選択</button><input type="file" id="batchPhotoInput" accept="image/*" multiple hidden></div>
+        <div class="quick-actions"><button type="button" class="quick-camera" id="startBatchCamera">連続撮影を開始</button><label class="secondary file-trigger" for="batchPhotoInput">写真をまとめて選択</label><input class="visually-hidden-file" type="file" id="batchPhotoInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple></div>
+        <input class="visually-hidden-file" type="file" id="nativeCameraInput" accept="image/*" capture="environment">
+        <p class="capture-message" id="captureMessage" role="status" aria-live="polite"></p>
         <div class="capture-queue" id="captureQueue"><p>まだ写真はありません</p></div>
         <div class="queue-actions"><span id="queueCount">0枚</span><button type="button" class="add-btn" id="saveBatch" disabled>まとめてアップロード</button></div>
         <p class="future-ai">AI自動入力（後日実装予定）：ジャケット画像からアーティスト名、タイトル、年代、A面・B面などを補完します。</p>
@@ -90,6 +92,6 @@
 
   <dialog id="detailDialog"><div id="detailContent"></div></dialog>
   <div class="toast" id="toast"></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
