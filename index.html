@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="market.css?v=7">
   <link rel="stylesheet" href="camera.css?v=7">
   <link rel="stylesheet" href="list-view.css?v=7">
-  <link rel="stylesheet" href="tracks.css?v=7">
+  <link rel="stylesheet" href="tracks.css?v=8">
   <link rel="stylesheet" href="news.css?v=7">
   <link rel="stylesheet" href="batch.css?v=7">
   <link rel="manifest" href="manifest.webmanifest">
@@ -75,8 +75,8 @@
         <label>タイトル<input name="title" required placeholder="例：Kind of Blue"></label>
         <label class="side-field side-a">A面 曲名<input name="aTitle" placeholder="例：曲名（A面）"></label>
         <label class="side-field side-b">B面 曲名<input name="bTitle" placeholder="例：曲名（B面）"></label>
-        <label>A面 音源URL（任意）<input name="aAudioUrl" type="url" placeholder="YouTube / SoundCloudなど"></label>
-        <label>B面 音源URL（任意）<input name="bAudioUrl" type="url" placeholder="YouTube / SoundCloudなど"></label>
+        <label>A面 音源URL（任意）<input name="aAudioUrl" type="url" placeholder="Apple Music / Spotifyなど"></label>
+        <label>B面 音源URL（任意）<input name="bAudioUrl" type="url" placeholder="Apple Music / Spotifyなど"></label>
         <label>発売年<input name="year" type="number" min="1900" max="2099" placeholder="1959"></label>
         <label>ジャンル<select name="genre"><option>Jazz</option><option>Rock</option><option>Soul</option><option>Electronic</option><option>Hip-Hop</option><option>Classical</option><option>Pop</option><option>Other</option></select></label>
         <label>盤の状態<select name="condition"><option>Mint</option><option>Near Mint</option><option selected>Very Good+</option><option>Very Good</option><option>Good</option></select></label>
@@ -85,13 +85,13 @@
         <label>カタログ番号<input name="catalogNo" placeholder="例：CBS/Sony 25AP 755"></label>
       </div>
       <label>メモ<textarea name="notes" rows="3" placeholder="購入店、プレス情報、思い出など"></textarea></label>
-      <p class="api-note">※ 音源URLが未入力の場合は、アーティスト名と曲名からYouTube／SoundCloud検索へ移動します。</p>
+      <p class="api-note">※ Apple Musicを最優先に、Spotify、YouTube、SoundCloudの検索へ移動できます。</p>
       <div class="dialog-actions"><button type="button" class="secondary" id="cancelDialog">キャンセル</button><button class="add-btn" type="submit">手入力で保存</button></div>
     </form>
   </dialog>
 
   <dialog id="detailDialog"><div id="detailContent"></div></dialog>
   <div class="toast" id="toast"></div>
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>
