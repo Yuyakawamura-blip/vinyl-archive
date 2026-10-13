@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0c0c0c">
+  <title>VINYL ARCHIVE — レコード所蔵管理</title>
+  <meta name="description" content="レコード写真、作品情報、コンディション、中古市場価格をまとめて管理する個人コレクションアプリ。">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Noto+Sans+JP:wght@400;500;700&family=Playfair+Display:ital,wght@0,600;1,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#">VINYL<span>ARCHIVE</span></a>
+    <nav><button class="nav-link active" data-view="collection">COLLECTION</button><button class="nav-link" data-view="market">MARKET</button></nav>
+    <div class="top-actions"><button class="icon-btn" id="exportBtn" title="バックアップを書き出す">↗</button><button class="add-btn" id="openAdd">＋ レコードを追加</button></div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div><p class="eyebrow">PRIVATE RECORD INDEX</p><h1>音の記憶を、<br><em>一枚ずつ。</em></h1><p class="lead">ジャケットを撮って、情報を整えて、価値の変化を眺める。<br>あなたのレコード棚のためのデジタル・アーカイブ。</p></div>
+      <div class="record-art" aria-hidden="true"><div class="vinyl"><span></span></div><div class="sleeve"><div class="sleeve-art">NIGHT<br>DRIVE</div><small>VA—001</small></div></div>
+    </section>
+
+    <section class="stats" id="stats"></section>
+
+    <section id="collectionView">
+      <div class="section-head"><div><p class="eyebrow">YOUR SHELF</p><h2>コレクション</h2></div><div class="tools"><label class="search">⌕ <input id="searchInput" placeholder="アーティスト、タイトル、年代で検索"></label><select id="sortSelect"><option value="added">追加順</option><option value="artist">アーティスト順</option><option value="year">年代順</option><option value="price">相場の高い順</option></select></div></div>
+      <div class="genre-row" id="genreRow"></div>
+      <div class="grid" id="recordGrid"></div>
+      <div class="empty hidden" id="emptyState"><div class="empty-disc"></div><h3>まだレコードがありません</h3><p>最初の一枚を追加して、あなたのアーカイブを始めましょう。</p><button class="add-btn" id="emptyAdd">＋ レコードを追加</button></div>
+    </section>
+
+    <section id="marketView" class="hidden">
+      <div class="section-head"><div><p class="eyebrow">MARKET PULSE</p><h2>中古市場価格</h2></div><p class="market-note">参考価格はコンディションや盤・プレスによって変動します。</p></div>
+      <div class="market-summary" id="marketSummary"></div><div class="market-list" id="marketList"></div>
+    </section>
+  </main>
+
+  <dialog id="addDialog">
+    <form id="recordForm" method="dialog">
+      <div class="dialog-head"><div><p class="eyebrow">ADD TO ARCHIVE</p><h2>レコードを追加</h2></div><button type="button" class="close" id="closeDialog">×</button></div>
+      <div class="upload-zone" id="uploadZone"><input type="file" id="coverInput" accept="image/*" hidden><img id="coverPreview" alt=""><div id="uploadPrompt"><div class="camera">▣</div><strong>ジャケット写真をアップロード</strong><span>クリックして写真を選択 · JPG / PNG</span></div></div>
+      <div class="lookup"><span>写真から候補検索（デモ）</span><button type="button" id="demoLookup">候補を検索</button></div>
+      <div class="fields">
+        <label>アーティスト名<input name="artist" required placeholder="例：Miles Davis"></label>
+        <label>タイトル<input name="title" required placeholder="例：Kind of Blue"></label>
+        <label>発売年<input name="year" type="number" min="1900" max="2099" placeholder="1959"></label>
+        <label>ジャンル<select name="genre"><option>Jazz</option><option>Rock</option><option>Soul</option><option>Electronic</option><option>Hip-Hop</option><option>Classical</option><option>Pop</option><option>Other</option></select></label>
+        <label>盤の状態<select name="condition"><option>Mint</option><option>Near Mint</option><option selected>Very Good+</option><option>Very Good</option><option>Good</option></select></label>
+        <label>参考相場（円）<input name="marketPrice" type="number" min="0" step="100" placeholder="4500"></label>
+        <label>購入価格（円）<input name="purchasePrice" type="number" min="0" step="100" placeholder="3000"></label>
+        <label>カタログ番号<input name="catalogNo" placeholder="例：CBS/Sony 25AP 755"></label>
+      </div>
+      <label>メモ<textarea name="notes" rows="3" placeholder="購入店、プレス情報、思い出など"></textarea></label>
+      <p class="api-note">※ 初版は手入力・デモ検索です。Discogs等のAPI連携時は候補と市場相場が自動入力されます。</p>
+      <div class="dialog-actions"><button type="button" class="secondary" id="cancelDialog">キャンセル</button><button class="add-btn" type="submit">コレクションに保存</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="detailDialog"><div id="detailContent"></div></dialog>
+  <div class="toast" id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
