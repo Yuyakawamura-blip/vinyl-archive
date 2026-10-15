@@ -78,6 +78,22 @@ const $ = (s) => document.querySelector(s),
   yen = (n) => "¥" + Number(n || 0).toLocaleString("ja-JP");
 const marketPriceLabel = (record) =>
   Number(record.marketPrice) > 0 ? yen(record.marketPrice) : "未調査";
+const formatArchiveDate = (value) => {
+  if (!value) return "日付不明";
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(value))
+    ? new Date(`${value}T00:00:00`)
+    : new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "日付不明"
+    : date.toLocaleDateString("ja-JP", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        timeZone: "Asia/Tokyo",
+      });
+};
+const tokyoToday = () =>
+  new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(new Date());
 function openDatabase() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open("vinyl-archive-db", 1);
@@ -132,10 +148,9 @@ function save() {
 function render() {
   const pricedRecords = records.filter((r) => Number(r.marketPrice) > 0),
     value = pricedRecords.reduce((s, r) => s + Number(r.marketPrice), 0),
-    paid = pricedRecords.reduce((s, r) => s + Number(r.purchasePrice || 0), 0),
     genres = new Set(records.map((r) => r.genre));
   $("#stats").innerHTML =
-    `<div class="stat"><strong>${records.length}</strong><span>RECORDS</span></div><div class="stat"><strong>${genres.size}</strong><span>GENRES</span></div><div class="stat"><strong>${yen(value)}</strong><span>MARKET VALUE · ${pricedRecords.length}/${records.length}件調査済み</span></div><div class="stat"><strong>${value - paid >= 0 ? "+" : ""}${yen(value - paid)}</strong><span>VALUE CHANGE · 調査済み分</span></div>`;
+    `<div class="stat"><strong>${records.length}</strong><span>RECORDS</span></div><div class="stat"><strong>${genres.size}</strong><span>GENRES</span></div><div class="stat"><strong>${yen(value)}</strong><span>MARKET VALUE · ${pricedRecords.length}/${records.length}件調査済み</span></div>`;
   const all = ["All", ...genres];
   $("#genreRow").innerHTML = all
     .map(
@@ -223,7 +238,7 @@ function card(r) {
             : r.aiStatus === "no_resources"
               ? "AIリソースなし"
               : "";
-  return `<article class="card" data-id="${r.id}"><div class="cover"><img src="${r.cover || placeholder(r)}" alt="${esc(r.title)}のジャケット"><span class="condition">${r.condition}</span>${aiLabel ? `<span class="ai-status ${r.aiStatus}">${aiLabel}</span>` : ""}</div><div class="card-meta"><p>${esc(r.artist)} · ${r.year || "—"}</p><h3>${esc(r.title)}</h3>${trackSummary(r)}<div class="price-row"><span>${r.genre}</span><b>${marketPriceLabel(r)}</b></div></div></article>`;
+  return `<article class="card" data-id="${r.id}"><div class="cover"><img src="${r.cover || placeholder(r)}" alt="${esc(r.title)}のジャケット">${aiLabel ? `<span class="ai-status ${r.aiStatus}">${aiLabel}</span>` : ""}</div><div class="card-meta"><p>${esc(r.artist)} · ${r.year || "—"}</p><h3>${esc(r.title)}</h3>${trackSummary(r)}<div class="price-row"><span>${r.genre}</span><b>${marketPriceLabel(r)}</b></div><small class="added-date">追加日 ${esc(formatArchiveDate(r.added))}</small></div></article>`;
 }
 function placeholder(r) {
   return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#1d2e43"/><circle cx="430" cy="170" r="190" fill="#e94f28"/><text x="42" y="465" font-size="54" fill="#f2eee5" font-family="serif">${esc(r.title).slice(0, 16)}</text><text x="45" y="515" font-size="21" fill="#dfba62" font-family="sans-serif">${esc(r.artist)}</text></svg>`)}`;
@@ -252,17 +267,15 @@ function trackRow(r, side, title, directUrl) {
 }
 function renderMarket() {
   const pricedRecords = records.filter((r) => Number(r.marketPrice) > 0),
-    value = pricedRecords.reduce((sum, r) => sum + Number(r.marketPrice), 0),
-    paid = pricedRecords.reduce((sum, r) => sum + Number(r.purchasePrice || 0), 0),
-    diff = value - paid;
+    value = pricedRecords.reduce((sum, r) => sum + Number(r.marketPrice), 0);
   $("#marketSummary").innerHTML =
-    `<div><strong>${yen(value)}</strong><span>調査済み市場価格（${pricedRecords.length}/${records.length}件）</span></div><div><strong>${yen(paid)}</strong><span>調査済みレコードの購入額</span></div><div><strong style="color:${diff >= 0 ? "#70c7a8" : "#ef8f78"}">${diff >= 0 ? "+" : ""}${yen(diff)}</strong><span>調査済み分の差額</span></div>`;
+    `<div><strong>${yen(value)}</strong><span>調査済み市場価格の合計</span></div><div><strong>${pricedRecords.length}/${records.length}</strong><span>調査済みレコード</span></div>`;
   $("#marketList").innerHTML = records
     .slice()
     .sort((a, b) => Number(b.marketPrice || 0) - Number(a.marketPrice || 0))
     .map(
       (r) =>
-        `<div class="market-item"><img src="${r.cover || placeholder(r)}"><div><strong>${esc(r.title)}</strong><br><small>${esc(r.artist)} · ${r.year || "年代不明"}</small><p class="market-evidence">${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "ウェブ調査による参考価格" : "価格情報が見つかっていません"))}</p></div><strong>${marketPriceLabel(r)}</strong><small class="source">確認 ${esc(r.marketPriceChecked || "—")}</small></div>`,
+        `<div class="market-item"><img src="${r.cover || placeholder(r)}"><div><strong>${esc(r.title)}</strong><br><small>${esc(r.artist)} · ${r.year || "年代不明"}</small><p class="market-evidence">${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "ウェブ調査による参考価格" : "価格情報が見つかっていません"))}</p></div><strong>${marketPriceLabel(r)}</strong><small class="source">追加日 ${esc(formatArchiveDate(r.added))}<br>調査 ${esc(r.marketPriceChecked || "—")}</small></div>`,
     )
     .join("");
 }
@@ -304,7 +317,7 @@ function aiSourceList(sources = []) {
 function showDetail(id) {
   const r = records.find((x) => x.id === id);
   $("#detailContent").innerHTML =
-    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><button class="close" onclick="detailDialog.close()">×</button></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}"><div><p>${r.genre} · ${r.year || "年代不明"}</p><h2>${esc(r.title)}</h2><h3>${esc(r.artist)}</h3>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "次回同期時に再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle, r.aAudioUrl)}${trackRow(r, "B", r.bTitle, r.bAudioUrl)}</div><div class="detail-data"><div><span>MARKET</span><b>${marketPriceLabel(r)}</b></div><div><span>PURCHASE</span><b>${yen(r.purchasePrice)}</b></div><div><span>CONDITION</span><b>${r.condition}</b></div><div><span>CATALOG NO.</span><b>${esc(r.catalogNo || "—")}</b></div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" onclick="retryCloudAnalysis('${esc(r.id)}')">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button class="delete-btn" onclick="removeRecord('${esc(r.id)}')">このレコードを削除</button></div></div>`;
+    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><button class="close" onclick="detailDialog.close()">×</button></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}"><div><p>${r.genre} · ${r.year || "年代不明"}</p><h2>${esc(r.title)}</h2><h3>${esc(r.artist)}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "次回同期時に再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle, r.aAudioUrl)}${trackRow(r, "B", r.bTitle, r.bAudioUrl)}</div><div class="detail-data"><div><span>MARKET</span><b>${marketPriceLabel(r)}</b></div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" onclick="retryCloudAnalysis('${esc(r.id)}')">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button class="delete-btn" onclick="removeRecord('${esc(r.id)}')">このレコードを削除</button></div></div>`;
   $("#detailDialog").showModal();
 }
 window.removeRecord = (id) => {
@@ -480,7 +493,7 @@ function addBatchFiles(files) {
 }
 function saveBatch() {
   if (!batchPhotos.length) return;
-  const today = new Date().toISOString().slice(0, 10),
+  const today = tokyoToday(),
     created = batchPhotos.map((cover, i) => ({
       id: crypto.randomUUID(),
       artist: "AI解析待ち",
@@ -566,7 +579,7 @@ $("#coverInput").onchange = (e) => {
 $("#recordForm").onsubmit = (e) => {
   e.preventDefault();
   const d = Object.fromEntries(new FormData(e.target)),
-    today = new Date().toISOString().slice(0, 10);
+    today = tokyoToday();
   records.unshift({
     ...d,
     id: crypto.randomUUID(),
@@ -574,7 +587,7 @@ $("#recordForm").onsubmit = (e) => {
     marketPrice: d.marketPrice === "" ? null : Number(d.marketPrice),
     marketPriceNotes: d.marketPrice === "" ? "" : "手入力の市場価格です。",
     marketPriceChecked: d.marketPrice === "" ? "" : today,
-    purchasePrice: Number(d.purchasePrice),
+    purchasePrice: Number(d.purchasePrice || 0),
     cover: coverData,
     added: today,
     priceChecked: today,

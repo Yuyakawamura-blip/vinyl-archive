@@ -13,7 +13,7 @@
     <title>VINYL ARCHIVE — レコード所蔵管理</title>
     <meta
       name="description"
-      content="レコード写真、作品情報、コンディション、中古市場価格をまとめて管理する個人コレクションアプリ。"
+      content="レコード写真、作品情報、追加日、中古市場価格をまとめて管理する個人コレクションアプリ。"
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -23,7 +23,7 @@
     />
     <link rel="stylesheet" href="styles.css?v=10" />
     <link rel="stylesheet" href="ai-sources.css?v=1" />
-    <link rel="stylesheet" href="market.css?v=8" />
+    <link rel="stylesheet" href="market.css?v=9" />
     <link rel="stylesheet" href="camera.css?v=10" />
     <link rel="stylesheet" href="list-view.css?v=7" />
     <link rel="stylesheet" href="tracks.css?v=8" />
@@ -124,7 +124,7 @@
             <h2>中古市場価格</h2>
           </div>
           <p class="market-note">
-            同じ盤のウェブ情報を照合した参考価格です。価格根拠が見つからない場合は「未調査」と表示します。
+            落札履歴と商品詳細ページを直接照合した参考価格です。十分な根拠を確認できない場合は「未調査」と表示します。
           </p>
         </div>
         <div class="market-summary" id="marketSummary"></div>
@@ -291,34 +291,12 @@
             </select></label
           >
           <label
-            >盤の状態<select name="condition">
-              <option>Mint</option>
-              <option>Near Mint</option>
-              <option selected>Very Good+</option>
-              <option>Very Good</option>
-              <option>Good</option>
-            </select></label
-          >
-          <label
             >市場価格（円）<input
               name="marketPrice"
               type="number"
               min="0"
               step="100"
               placeholder="4500"
-          /></label>
-          <label
-            >購入価格（円）<input
-              name="purchasePrice"
-              type="number"
-              min="0"
-              step="100"
-              placeholder="3000"
-          /></label>
-          <label
-            >カタログ番号<input
-              name="catalogNo"
-              placeholder="例：CBS/Sony 25AP 755"
           /></label>
         </div>
         <label
@@ -329,8 +307,7 @@
           ></textarea>
         </label>
         <p class="api-note">
-          ※ Apple
-          Musicを最優先に、Spotify、YouTube、SoundCloudの検索へ移動できます。
+          ※ Apple Musicを最優先に、Spotify、YouTube、SoundCloudの検索へ移動できます。追加日は自動で記録されます。
         </p>
         <div class="dialog-actions">
           <button type="button" class="secondary" id="cancelDialog">
@@ -417,7 +394,7 @@
     <div class="toast" id="toast"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"></script>
     <script src="cloud-config.js?v=10"></script>
-    <script src="cloud-sync.js?v=15"></script>
-    <script src="app.js?v=16"></script>
+    <script src="cloud-sync.js?v=18"></script>
+    <script src="app.js?v=18"></script>
   </body>
 </html>

@@ -2,6 +2,31 @@
   grid-template-columns: 50px minmax(0, 1fr) 125px 110px;
 }
 
+.stats {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.market-summary {
+  grid-template-columns: 1fr 1fr;
+}
+
+.record-added {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 10px 0 0;
+}
+
+.record-added time {
+  color: var(--ink);
+}
+
+.added-date {
+  color: var(--muted);
+  display: block;
+  font: 9px "DM Mono";
+  margin-top: 8px;
+}
+
 .market-evidence {
   color: var(--muted);
   font-size: 11px;
@@ -45,6 +70,14 @@
 }
 
 @media (max-width: 900px) {
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .market-summary {
+    grid-template-columns: 1fr;
+  }
+
   .market-item {
     grid-template-columns: 50px minmax(0, 1fr) 110px;
   }
