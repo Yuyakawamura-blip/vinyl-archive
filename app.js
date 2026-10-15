@@ -247,7 +247,7 @@ function trackRow(r, side, title, directUrl) {
   if (!title)
     return `<div class="track-row empty-track"><b>${side}</b><span>${side === "B" ? "未確認" : "曲名未登録"}</span></div>`;
   const direct = safeAudioUrl(directUrl);
-  const review = side === "B" && r.bTitleVerified === false;
+  const review = side === "B" && r.bTitleVerified !== true;
   return `<div class="track-row"><b>${side}</b><span>${esc(title)}${review ? "（要確認）" : ""}</span><div class="listen-links"><a class="listen-apple" href="${appleMusicSearch(r, title)}" target="_blank" rel="noopener"> Music ↗</a><a class="listen-spotify" href="${spotifySearch(r, title)}" target="_blank" rel="noopener">Spotify</a>${direct ? `<a href="${esc(direct)}" target="_blank" rel="noopener">登録音源</a>` : ""}<a href="${youtubeSearch(r, title)}" target="_blank" rel="noopener">YouTube</a><a href="${soundcloudSearch(r, title)}" target="_blank" rel="noopener">SoundCloud</a></div></div>`;
 }
 function renderMarket() {
