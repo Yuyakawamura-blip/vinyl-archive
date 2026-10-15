@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="tracks.css?v=8">
   <link rel="stylesheet" href="news.css?v=7">
   <link rel="stylesheet" href="batch.css?v=10">
-  <link rel="stylesheet" href="sync.css?v=11">
+  <link rel="stylesheet" href="sync.css?v=12">
   <link rel="manifest" href="manifest.webmanifest">
 </head>
 <body>
@@ -100,18 +100,24 @@
       <p class="eyebrow">AUTOMATIC CLOUD SYNC</p>
       <h2>すべての端末で、同じ棚を。</h2>
       <p>コレクションは自動同期されます。iPhoneにある既存の写真も、ログイン後に自動アップロードされます。</p>
-      <form id="syncLoginForm">
-        <label>メールアドレス<input name="email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
-        <button class="add-btn" id="syncLoginButton" type="submit">ログインメールを送る</button>
+      <div class="auth-mode-switch" id="authModeSwitch" role="tablist" aria-label="認証方法">
+        <button id="authLoginMode" class="active" type="button" role="tab" aria-selected="true">ログイン</button>
+        <button id="authSignupMode" type="button" role="tab" aria-selected="false">新規登録</button>
+      </div>
+      <form id="syncAuthForm">
+        <label id="syncAuthEmailField">メールアドレス<input id="syncAuthEmail" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+        <label id="syncAuthPasswordField">パスワード<input id="syncAuthPassword" name="password" type="password" autocomplete="current-password" required></label>
+        <button class="add-btn" id="syncAuthSubmit" type="submit">ログイン</button>
       </form>
-      <p class="sync-login-message" id="syncLoginMessage" role="status">同じメールアドレスでiPhoneとiMacにログインしてください。</p>
-      <small>オフライン時は端末内に安全に保持し、通信が戻ると自動で同期します。</small>
+      <button class="auth-reset" id="syncAuthReset" type="button">パスワードを忘れた場合</button>
+      <p class="sync-login-message" id="syncAuthMessage" role="status">メールアドレスとパスワードでログインしてください。</p>
+      <small>新規登録後、確認メールが届いた場合はリンクを開いて登録を完了してください。</small>
     </div>
   </dialog>
   <div class="toast" id="toast"></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"></script>
   <script src="cloud-config.js?v=10"></script>
-  <script src="cloud-sync.js?v=11"></script>
-  <script src="app.js?v=11"></script>
+  <script src="cloud-sync.js?v=12"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>

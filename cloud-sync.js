@@ -5,6 +5,7 @@
   let currentUser=null;
   let syncing=false;
   let rerun=false;
+  let authMode='login';
   const pendingDeleteKey='vinyl-archive-pending-deletes';
   const $=selector=>document.querySelector(selector);
 
@@ -66,9 +67,60 @@
   async function syncAll(){if(!configured||!currentUser||!navigator.onLine)return;if(syncing){rerun=true;return}syncing=true;updateStatus('syncing','同期中…');try{await removePendingRecords();const items=localRecords();for(let index=0;index<items.length;index+=2)await Promise.all(items.slice(index,index+2).map(uploadRecord));await downloadRecords();updateStatus('synced','同期済み')}catch(error){console.error(error);updateStatus('error','同期を再試行');const message=error?.message||'原因を特定できませんでした';window.vinylApp?.notify?.(`同期できませんでした: ${message.slice(0,180)}。次回同期時に再試行します`)}finally{syncing=false;if(rerun){rerun=false;syncAll()}}}
 
   function showRequiredLogin(){const dialog=$('#syncDialog');if(dialog&&!dialog.open)dialog.showModal();updateStatus('required','ログインが必要')}
-  async function sendMagicLink(email){const redirectTo=`${location.origin}${location.pathname}`;const {error}=await client.auth.signInWithOtp({email,options:{emailRedirectTo:redirectTo}});if(error)throw error;$('#syncLoginForm').classList.add('sent');$('#syncLoginMessage').textContent='メールを送信しました。届いたリンクを開くと、自動同期が始まります。'}
+  function setAuthMode(mode){
+    authMode=mode;
+    const isSignup=mode==='signup',isReset=mode==='reset',isUpdate=mode==='update';
+    $('#authModeSwitch').hidden=isUpdate;
+    $('#authLoginMode').classList.toggle('active',mode==='login');
+    $('#authSignupMode').classList.toggle('active',isSignup);
+    $('#authLoginMode').setAttribute('aria-selected',String(mode==='login'));
+    $('#authSignupMode').setAttribute('aria-selected',String(isSignup));
+    $('#syncAuthEmailField').hidden=isUpdate;
+    $('#syncAuthEmail').required=!isUpdate;
+    if(isUpdate)$('#syncAuthEmail').value=currentUser?.email||'';
+    $('#syncAuthPasswordField').hidden=isReset;
+    $('#syncAuthPassword').required=!isReset;
+    $('#syncAuthPassword').minLength=isSignup||isUpdate?6:0;
+    $('#syncAuthPassword').autocomplete=isSignup||isUpdate?'new-password':'current-password';
+    $('#syncAuthSubmit').textContent=isSignup?'アカウントを作成':isReset?'再設定メールを送る':isUpdate?'パスワードを更新':'ログイン';
+    $('#syncAuthReset').hidden=mode!=='login';
+    $('#syncAuthMessage').textContent=isSignup?'新しいアカウントを作成します。':isReset?'登録メールアドレスに再設定リンクを送ります。':isUpdate?'新しいパスワードを設定してください。':'メールアドレスとパスワードでログインしてください。';
+  }
+  function authErrorMessage(error){
+    const message=String(error?.message||'');
+    if(/already registered|already exists/i.test(message))return 'このメールアドレスは登録済みです。ログインするか、パスワードを再設定してください。';
+    if(/invalid login credentials/i.test(message))return 'メールアドレスまたはパスワードが正しくありません。';
+    return `認証できませんでした: ${message||'不明なエラー'}`;
+  }
+  async function submitAuth(event){
+    event.preventDefault();
+    const form=event.currentTarget,button=$('#syncAuthSubmit'),formData=new FormData(form),email=String(formData.get('email')||'').trim(),password=formData.get('password');
+    const redirectTo=`${location.origin}${location.pathname}`;
+    button.disabled=true;
+    try{
+      if(authMode==='reset'){
+        const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo});
+        if(error)throw error;
+        $('#syncAuthMessage').textContent='パスワード再設定メールを送信しました。メール内のリンクを開いてください。';
+      }else if(authMode==='update'){
+        const {error}=await client.auth.updateUser({password});
+        if(error)throw error;
+        $('#syncAuthMessage').textContent='パスワードを更新しました。同期を開始します。';
+      }else if(authMode==='signup'){
+        const {data,error}=await client.auth.signUp({email,password,options:{emailRedirectTo:redirectTo}});
+        if(error)throw error;
+        if(data.session)$('#syncAuthMessage').textContent='アカウントを作成しました。同期を開始します。';
+        else $('#syncAuthMessage').textContent='確認メールを送信しました。メール内のリンクを開くと登録が完了します。';
+      }else{
+        const {error}=await client.auth.signInWithPassword({email,password});
+        if(error)throw error;
+        $('#syncAuthMessage').textContent='ログインしました。同期を開始します。';
+      }
+    }catch(error){$('#syncAuthMessage').textContent=authErrorMessage(error)}
+    finally{button.disabled=false}
+  }
 
-  async function initCloudSync(){if(!configured){updateStatus('setup','同期設定中');return}client=window.supabase.createClient(config.url,config.publishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});client.auth.onAuthStateChange((_event,session)=>{currentUser=session?.user||null;if(currentUser){$('#syncDialog')?.close();syncAll()}else showRequiredLogin()});const {data}=await client.auth.getSession();currentUser=data.session?.user||null;if(currentUser)await syncAll();else showRequiredLogin()}
+  async function initCloudSync(){if(!configured){updateStatus('setup','同期設定中');return}client=window.supabase.createClient(config.url,config.publishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});client.auth.onAuthStateChange((event,session)=>{currentUser=session?.user||null;if(event==='PASSWORD_RECOVERY'&&currentUser){const dialog=$('#syncDialog');if(dialog&&!dialog.open)dialog.showModal();setAuthMode('update');return}if(currentUser){$('#syncDialog')?.close();syncAll()}else showRequiredLogin()});const {data}=await client.auth.getSession();currentUser=data.session?.user||null;if(currentUser)await syncAll();else showRequiredLogin()}
 
   window.queueCloudSync=()=>{if(configured&&currentUser)syncAll();else if(configured)showRequiredLogin()};
   window.deleteCloudRecord=(id,coverPath)=>{setPendingDeletes([...pendingDeletes(),{id,coverPath}]);window.queueCloudSync()};
@@ -76,6 +128,9 @@
   window.addEventListener('online',()=>window.queueCloudSync());
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')window.queueCloudSync()});
   $('#syncDialog')?.addEventListener('cancel',event=>event.preventDefault());
-  $('#syncLoginForm')?.addEventListener('submit',async event=>{event.preventDefault();const button=$('#syncLoginButton'),email=new FormData(event.currentTarget).get('email');button.disabled=true;$('#syncLoginMessage').textContent='ログインメールを送信しています…';try{await sendMagicLink(email)}catch(error){$('#syncLoginMessage').textContent=`送信できませんでした：${error.message}`}finally{button.disabled=false}});
+  $('#authLoginMode')?.addEventListener('click',()=>setAuthMode('login'));
+  $('#authSignupMode')?.addEventListener('click',()=>setAuthMode('signup'));
+  $('#syncAuthReset')?.addEventListener('click',()=>setAuthMode('reset'));
+  $('#syncAuthForm')?.addEventListener('submit',submitAuth);
   $('#syncStatus')?.addEventListener('click',()=>{if(!configured)return window.vinylApp?.notify?.('クラウド同期の接続設定中です');if(currentUser)syncAll();else showRequiredLogin()});
 })();
