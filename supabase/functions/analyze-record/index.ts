@@ -139,7 +139,7 @@ Deno.serve(async (request) => {
 5. 正確なB面が資料で確認できた場合だけ bTitleVerified=true としてください。照合に自信がなければ needsReview=true にしてください。根拠がない年、カタログ番号、曲名、価格は作らないでください。出力は指定JSON形式のみです。`;
     const researched = await callGemini({
       contents: [{parts: [{text: researchPrompt}]}],
-      tools: [{googleSearch: {}}],
+      tools: [{google_search: {}}],
       generationConfig: {responseMimeType: 'application/json', responseJsonSchema: researchSchema},
     });
 
