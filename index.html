@@ -28,7 +28,7 @@
     <link rel="stylesheet" href="tracks.css?v=8" />
     <link rel="stylesheet" href="news.css?v=7" />
     <link rel="stylesheet" href="batch.css?v=10" />
-    <link rel="stylesheet" href="sync.css?v=12" />
+    <link rel="stylesheet" href="sync.css?v=13" />
     <link rel="manifest" href="manifest.webmanifest" />
   </head>
   <body>
@@ -40,6 +40,15 @@
         ><button class="nav-link" data-view="market">MARKET</button>
       </nav>
       <div class="top-actions">
+        <button
+          class="account-status"
+          id="accountStatus"
+          type="button"
+          aria-label="アカウントを確認または切り替える"
+          hidden
+        >
+          アカウント
+        </button>
         <button
           class="sync-status local"
           id="syncStatus"
@@ -390,6 +399,15 @@
         <p class="sync-login-message" id="syncAuthMessage" role="status">
           メールアドレスとパスワードでログインしてください。
         </p>
+        <div class="account-panel" id="accountPanel" hidden>
+          <p>ログイン中のアカウント</p>
+          <strong id="accountEmail"></strong>
+          <p>ログアウトすると、この端末で別のアカウントにログインするか、新規登録できます。</p>
+          <div class="dialog-actions">
+            <button class="secondary" id="accountClose" type="button">閉じる</button>
+            <button class="add-btn" id="accountLogout" type="button">ログアウトして切り替える</button>
+          </div>
+        </div>
         <small
           >新規登録後、確認メールが届いた場合はリンクを開いて登録を完了してください。</small
         >
@@ -398,7 +416,7 @@
     <div class="toast" id="toast"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"></script>
     <script src="cloud-config.js?v=10"></script>
-    <script src="cloud-sync.js?v=12"></script>
-    <script src="app.js?v=12"></script>
+    <script src="cloud-sync.js?v=13"></script>
+    <script src="app.js?v=13"></script>
   </body>
 </html>

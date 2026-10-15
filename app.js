@@ -72,6 +72,7 @@ let cameraStream = null;
 let cameraMode = "manual";
 let batchPhotos = [];
 let db = null;
+let databaseCollectionKey = "records";
 let viewMode = localStorage.getItem("vinyl-archive-view") || "grid";
 const $ = (s) => document.querySelector(s),
   yen = (n) => "¥" + Number(n || 0).toLocaleString("ja-JP");
@@ -91,7 +92,7 @@ function readDatabase() {
     const request = db
       .transaction("archive", "readonly")
       .objectStore("archive")
-      .get("records");
+      .get(databaseCollectionKey);
     request.onsuccess = () => resolve(request.result?.value || null);
     request.onerror = () => reject(request.error);
   });
@@ -100,7 +101,7 @@ function writeDatabase() {
   if (!db) return;
   const tx = db.transaction("archive", "readwrite");
   tx.objectStore("archive").put({
-    id: "records",
+    id: databaseCollectionKey,
     value: records,
     updatedAt: new Date().toISOString(),
   });
@@ -600,6 +601,26 @@ $("#exportBtn").onclick = () => {
 };
 window.vinylApp = {
   getRecords: () => records,
+  selectCloudCollection: async (userId, preserveCurrent = false) => {
+    const nextKey = userId ? `records:user:${userId}` : "records:guest";
+    if (nextKey === databaseCollectionKey) return;
+    if (preserveCurrent && databaseCollectionKey === "records") {
+      const tx = db.transaction("archive", "readwrite");
+      tx.objectStore("archive").put({
+        id: nextKey,
+        value: records,
+        updatedAt: new Date().toISOString(),
+      });
+      await new Promise((resolve, reject) => {
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    }
+    databaseCollectionKey = nextKey;
+    records = (await readDatabase()) || [];
+    render();
+  },
   replaceRecords: (next) => {
     records = next;
     writeDatabase();

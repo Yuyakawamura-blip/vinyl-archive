@@ -8,6 +8,9 @@
   let syncing = false;
   let rerun = false;
   let authMode = "login";
+  let activeUserId = null;
+  let authTransition = Promise.resolve();
+  const lastCloudUserKey = "vinyl-archive-last-cloud-user";
   const pendingDeleteKey = "vinyl-archive-pending-deletes";
   const $ = (selector) => document.querySelector(selector);
 
@@ -208,6 +211,7 @@
 
   function showRequiredLogin() {
     const dialog = $("#syncDialog");
+    setAuthMode("login");
     if (dialog && !dialog.open) dialog.showModal();
     updateStatus("required", "ログインが必要");
   }
@@ -215,17 +219,20 @@
     authMode = mode;
     const isSignup = mode === "signup",
       isReset = mode === "reset",
-      isUpdate = mode === "update";
-    $("#authModeSwitch").hidden = isUpdate;
+      isUpdate = mode === "update",
+      isAccount = mode === "account";
+    $("#authModeSwitch").hidden = isUpdate || isAccount;
+    $("#syncAuthForm").hidden = isAccount;
+    $("#accountPanel").hidden = !isAccount;
     $("#authLoginMode").classList.toggle("active", mode === "login");
     $("#authSignupMode").classList.toggle("active", isSignup);
     $("#authLoginMode").setAttribute("aria-selected", String(mode === "login"));
     $("#authSignupMode").setAttribute("aria-selected", String(isSignup));
-    $("#syncAuthEmailField").hidden = isUpdate;
+    $("#syncAuthEmailField").hidden = isUpdate || isAccount;
     $("#syncAuthEmail").required = !isUpdate;
     if (isUpdate) $("#syncAuthEmail").value = currentUser?.email || "";
-    $("#syncAuthPasswordField").hidden = isReset;
-    $("#syncAuthPassword").required = !isReset;
+    $("#syncAuthPasswordField").hidden = isReset || isAccount;
+    $("#syncAuthPassword").required = !isReset && !isAccount;
     $("#syncAuthPassword").minLength = isSignup || isUpdate ? 6 : 0;
     $("#syncAuthPassword").autocomplete =
       isSignup || isUpdate ? "new-password" : "current-password";
@@ -237,6 +244,9 @@
           ? "パスワードを更新"
           : "ログイン";
     $("#syncAuthReset").hidden = mode !== "login";
+    $("#accountEmail").textContent =
+      currentUser?.email || "メールアドレス未設定";
+    $("#syncAuthMessage").hidden = isAccount;
     $("#syncAuthMessage").textContent = isSignup
       ? "新しいアカウントを作成します。"
       : isReset
@@ -285,7 +295,11 @@
         if (data.session)
           $("#syncAuthMessage").textContent =
             "アカウントを作成しました。同期を開始します。";
-        else if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0)
+        else if (
+          data.user &&
+          Array.isArray(data.user.identities) &&
+          data.user.identities.length === 0
+        )
           $("#syncAuthMessage").textContent =
             "このメールアドレスは既に登録済みです。ログインするか、パスワード再設定をしてください。";
         else
@@ -320,22 +334,68 @@
       },
     });
     client.auth.onAuthStateChange((event, session) => {
-      currentUser = session?.user || null;
-      if (event === "PASSWORD_RECOVERY" && currentUser) {
-        const dialog = $("#syncDialog");
-        if (dialog && !dialog.open) dialog.showModal();
-        setAuthMode("update");
-        return;
-      }
-      if (currentUser) {
-        $("#syncDialog")?.close();
-        syncAll();
-      } else showRequiredLogin();
+      authTransition = authTransition.then(async () => {
+        const nextUser = session?.user || null;
+        if (event === "PASSWORD_RECOVERY" && nextUser) {
+          currentUser = nextUser;
+          $("#accountStatus").hidden = false;
+          if (!$("#syncDialog")?.open) $("#syncDialog")?.showModal();
+          setAuthMode("update");
+          return;
+        }
+        if (nextUser) {
+          if (activeUserId === nextUser.id) {
+            currentUser = nextUser;
+            return;
+          }
+          const previousUserId = localStorage.getItem(lastCloudUserKey);
+          await window.vinylApp?.selectCloudCollection?.(
+            nextUser.id,
+            !previousUserId,
+          );
+          localStorage.setItem(lastCloudUserKey, nextUser.id);
+          activeUserId = nextUser.id;
+          currentUser = nextUser;
+          $("#accountStatus").hidden = false;
+          $("#syncDialog")?.close();
+          await syncAll();
+          return;
+        }
+        currentUser = null;
+        if (activeUserId)
+          await window.vinylApp?.selectCloudCollection?.(null, false);
+        activeUserId = null;
+        $("#accountStatus").hidden = true;
+        showRequiredLogin();
+      }).catch((error) => {
+        console.error("Could not switch the active cloud account", error);
+        showRequiredLogin();
+      });
     });
     const { data } = await client.auth.getSession();
-    currentUser = data.session?.user || null;
-    if (currentUser) await syncAll();
-    else showRequiredLogin();
+    authTransition = authTransition.then(async () => {
+      const session = data.session;
+      const nextUser = session?.user || null;
+      if (!nextUser) {
+        if (!activeUserId) showRequiredLogin();
+        return;
+      }
+      if (activeUserId === nextUser.id) return;
+      const previousUserId = localStorage.getItem(lastCloudUserKey);
+      await window.vinylApp?.selectCloudCollection?.(
+        nextUser.id,
+        !previousUserId,
+      );
+      localStorage.setItem(lastCloudUserKey, nextUser.id);
+      activeUserId = nextUser.id;
+      currentUser = nextUser;
+      $("#accountStatus").hidden = false;
+      await syncAll();
+    }).catch((error) => {
+      console.error("Could not initialize the active cloud account", error);
+      showRequiredLogin();
+    });
+    await authTransition;
   }
 
   window.queueCloudSync = () => {
@@ -358,6 +418,33 @@
   $("#authSignupMode")?.addEventListener("click", () => setAuthMode("signup"));
   $("#syncAuthReset")?.addEventListener("click", () => setAuthMode("reset"));
   $("#syncAuthForm")?.addEventListener("submit", submitAuth);
+  $("#accountStatus")?.addEventListener("click", () => {
+    setAuthMode("account");
+    $("#syncDialog")?.showModal();
+  });
+  $("#accountClose")?.addEventListener("click", () =>
+    $("#syncDialog")?.close(),
+  );
+  $("#accountLogout")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      setAuthMode("login");
+      const { error } = await client.auth.signOut();
+      if (error) throw error;
+      $("#syncAuthMessage").textContent =
+        "ログアウトしました。別のアカウントでログインするか、新規登録してください。";
+      $("#syncAuthPassword").value = "";
+      $("#accountStatus").hidden = true;
+    } catch (error) {
+      setAuthMode("account");
+      window.vinylApp?.notify?.(
+        `ログアウトできませんでした: ${error?.message || "通信エラー"}`,
+      );
+    } finally {
+      button.disabled = false;
+    }
+  });
   $("#syncStatus")?.addEventListener("click", () => {
     if (!configured)
       return window.vinylApp?.notify?.("クラウド同期の接続設定中です");

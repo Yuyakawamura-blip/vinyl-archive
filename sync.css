@@ -1,6 +1,19 @@
 .top-actions {
   align-items: center;
 }
+.account-status {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font: 500 10px "DM Mono";
+  padding: 10px 4px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.account-status:hover {
+  color: var(--ink);
+}
 .sync-status {
   align-items: center;
   background: transparent;
@@ -74,6 +87,9 @@
   gap: 14px;
   padding: 20px 0 8px;
 }
+.sync-dialog-inner form[hidden] {
+  display: none;
+}
 .sync-dialog-inner form label {
   font: 10px "DM Mono";
 }
@@ -100,6 +116,26 @@
 .sync-login-message {
   min-height: 24px;
 }
+.account-panel {
+  border-top: 1px solid var(--line);
+  margin-top: 20px;
+  padding-top: 18px;
+}
+.account-panel p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.account-panel strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.account-panel .dialog-actions {
+  flex-wrap: wrap;
+}
+.account-panel[hidden] {
+  display: none;
+}
 .sync-dialog-inner small {
   color: var(--muted);
   display: block;
@@ -115,6 +151,10 @@
 @media (max-width: 560px) {
   .sync-status {
     padding: 9px;
+  }
+  .account-status {
+    font-size: 9px;
+    padding: 9px 2px;
   }
   .sync-status span {
     display: none;
