@@ -76,6 +76,8 @@ let databaseCollectionKey = "records";
 let viewMode = localStorage.getItem("vinyl-archive-view") || "grid";
 const $ = (s) => document.querySelector(s),
   yen = (n) => "¥" + Number(n || 0).toLocaleString("ja-JP");
+const marketPriceLabel = (record) =>
+  Number(record.marketPrice) > 0 ? yen(record.marketPrice) : "未調査";
 function openDatabase() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open("vinyl-archive-db", 1);
@@ -128,11 +130,12 @@ function save() {
   window.queueCloudSync?.();
 }
 function render() {
-  const value = records.reduce((s, r) => s + Number(r.marketPrice || 0), 0),
-    paid = records.reduce((s, r) => s + Number(r.purchasePrice || 0), 0),
+  const pricedRecords = records.filter((r) => Number(r.marketPrice) > 0),
+    value = pricedRecords.reduce((s, r) => s + Number(r.marketPrice), 0),
+    paid = pricedRecords.reduce((s, r) => s + Number(r.purchasePrice || 0), 0),
     genres = new Set(records.map((r) => r.genre));
   $("#stats").innerHTML =
-    `<div class="stat"><strong>${records.length}</strong><span>RECORDS</span></div><div class="stat"><strong>${genres.size}</strong><span>GENRES</span></div><div class="stat"><strong>${yen(value)}</strong><span>MARKET VALUE</span></div><div class="stat"><strong>${value - paid >= 0 ? "+" : ""}${yen(value - paid)}</strong><span>VALUE CHANGE</span></div>`;
+    `<div class="stat"><strong>${records.length}</strong><span>RECORDS</span></div><div class="stat"><strong>${genres.size}</strong><span>GENRES</span></div><div class="stat"><strong>${yen(value)}</strong><span>MARKET VALUE · ${pricedRecords.length}/${records.length}件調査済み</span></div><div class="stat"><strong>${value - paid >= 0 ? "+" : ""}${yen(value - paid)}</strong><span>VALUE CHANGE · 調査済み分</span></div>`;
   const all = ["All", ...genres];
   $("#genreRow").innerHTML = all
     .map(
@@ -160,7 +163,7 @@ function render() {
       : sort === "year"
         ? b.year - a.year
         : sort === "price"
-          ? b.marketPrice - a.marketPrice
+          ? Number(b.marketPrice || 0) - Number(a.marketPrice || 0)
           : String(b.added).localeCompare(a.added),
   );
   $("#recordGrid").innerHTML = shown.map(card).join("");
@@ -172,7 +175,7 @@ function render() {
   document
     .querySelectorAll(".card")
     .forEach((c) => (c.onclick = () => showDetail(c.dataset.id)));
-  renderMarket(value, paid);
+  renderMarket();
   renderNews();
 }
 function isStandalone() {
@@ -220,19 +223,10 @@ function card(r) {
             : r.aiStatus === "no_resources"
               ? "AIリソースなし"
               : "";
-  return `<article class="card" data-id="${r.id}"><div class="cover"><img src="${r.cover || placeholder(r)}" alt="${esc(r.title)}のジャケット"><span class="condition">${r.condition}</span>${aiLabel ? `<span class="ai-status ${r.aiStatus}">${aiLabel}</span>` : ""}</div><div class="card-meta"><p>${esc(r.artist)} · ${r.year || "—"}</p><h3>${esc(r.title)}</h3>${trackSummary(r)}<div class="price-row"><span>${r.genre}</span><b>${yen(r.marketPrice)}</b></div></div></article>`;
+  return `<article class="card" data-id="${r.id}"><div class="cover"><img src="${r.cover || placeholder(r)}" alt="${esc(r.title)}のジャケット"><span class="condition">${r.condition}</span>${aiLabel ? `<span class="ai-status ${r.aiStatus}">${aiLabel}</span>` : ""}</div><div class="card-meta"><p>${esc(r.artist)} · ${r.year || "—"}</p><h3>${esc(r.title)}</h3>${trackSummary(r)}<div class="price-row"><span>${r.genre}</span><b>${marketPriceLabel(r)}</b></div></div></article>`;
 }
 function placeholder(r) {
   return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#1d2e43"/><circle cx="430" cy="170" r="190" fill="#e94f28"/><text x="42" y="465" font-size="54" fill="#f2eee5" font-family="serif">${esc(r.title).slice(0, 16)}</text><text x="45" y="515" font-size="21" fill="#dfba62" font-family="sans-serif">${esc(r.artist)}</text></svg>`)}`;
-}
-function searchTerms(r) {
-  return [r.artist, r.title, r.catalogNo].filter(Boolean).join(" ");
-}
-function yahooUrl(r) {
-  return `https://auctions.yahoo.co.jp/closedsearch/closedsearch/${encodeURIComponent(searchTerms(r))}/0/`;
-}
-function mercariUrl(r) {
-  return `https://jp.mercari.com/search?keyword=${encodeURIComponent(searchTerms(r))}`;
 }
 function youtubeSearch(r, track) {
   return `https://www.youtube.com/results?search_query=${encodeURIComponent([r.artist, track].filter(Boolean).join(" "))}`;
@@ -251,20 +245,24 @@ function safeAudioUrl(url) {
 }
 function trackRow(r, side, title, directUrl) {
   if (!title)
-    return `<div class="track-row empty-track"><b>${side}</b><span>曲名未登録</span></div>`;
+    return `<div class="track-row empty-track"><b>${side}</b><span>${side === "B" ? "未確認" : "曲名未登録"}</span></div>`;
   const direct = safeAudioUrl(directUrl);
-  return `<div class="track-row"><b>${side}</b><span>${esc(title)}</span><div class="listen-links"><a class="listen-apple" href="${appleMusicSearch(r, title)}" target="_blank" rel="noopener"> Music ↗</a><a class="listen-spotify" href="${spotifySearch(r, title)}" target="_blank" rel="noopener">Spotify</a>${direct ? `<a href="${esc(direct)}" target="_blank" rel="noopener">登録音源</a>` : ""}<a href="${youtubeSearch(r, title)}" target="_blank" rel="noopener">YouTube</a><a href="${soundcloudSearch(r, title)}" target="_blank" rel="noopener">SoundCloud</a></div></div>`;
+  const review = side === "B" && r.bTitleVerified === false;
+  return `<div class="track-row"><b>${side}</b><span>${esc(title)}${review ? "（要確認）" : ""}</span><div class="listen-links"><a class="listen-apple" href="${appleMusicSearch(r, title)}" target="_blank" rel="noopener"> Music ↗</a><a class="listen-spotify" href="${spotifySearch(r, title)}" target="_blank" rel="noopener">Spotify</a>${direct ? `<a href="${esc(direct)}" target="_blank" rel="noopener">登録音源</a>` : ""}<a href="${youtubeSearch(r, title)}" target="_blank" rel="noopener">YouTube</a><a href="${soundcloudSearch(r, title)}" target="_blank" rel="noopener">SoundCloud</a></div></div>`;
 }
-function renderMarket(value, paid) {
-  const diff = value - paid;
+function renderMarket() {
+  const pricedRecords = records.filter((r) => Number(r.marketPrice) > 0),
+    value = pricedRecords.reduce((sum, r) => sum + Number(r.marketPrice), 0),
+    paid = pricedRecords.reduce((sum, r) => sum + Number(r.purchasePrice || 0), 0),
+    diff = value - paid;
   $("#marketSummary").innerHTML =
-    `<div><strong>${yen(value)}</strong><span>コレクション推定総額</span></div><div><strong>${yen(paid)}</strong><span>購入総額</span></div><div><strong style="color:${diff >= 0 ? "#70c7a8" : "#ef8f78"}">${diff >= 0 ? "+" : ""}${yen(diff)}</strong><span>差額</span></div>`;
+    `<div><strong>${yen(value)}</strong><span>調査済み市場価格（${pricedRecords.length}/${records.length}件）</span></div><div><strong>${yen(paid)}</strong><span>調査済みレコードの購入額</span></div><div><strong style="color:${diff >= 0 ? "#70c7a8" : "#ef8f78"}">${diff >= 0 ? "+" : ""}${yen(diff)}</strong><span>調査済み分の差額</span></div>`;
   $("#marketList").innerHTML = records
     .slice()
-    .sort((a, b) => b.marketPrice - a.marketPrice)
+    .sort((a, b) => Number(b.marketPrice || 0) - Number(a.marketPrice || 0))
     .map(
       (r) =>
-        `<div class="market-item"><img src="${r.cover || placeholder(r)}"><div><strong>${esc(r.title)}</strong><br><small>${esc(r.artist)} · ${r.year}</small><div class="market-links"><a href="${yahooUrl(r)}" target="_blank" rel="noopener">ヤフオク落札相場 ↗</a><a href="${mercariUrl(r)}" target="_blank" rel="noopener">メルカリ出品相場 ↗</a></div></div><strong>${yen(r.marketPrice)}</strong><span class="trend ${r.trend >= 0 ? "up" : ""}">${r.trend >= 0 ? "↑" : "↓"} ${Math.abs(r.trend || 0)}%</span><small class="source">参考相場 · 確認 ${r.priceChecked || r.added}</small></div>`,
+        `<div class="market-item"><img src="${r.cover || placeholder(r)}"><div><strong>${esc(r.title)}</strong><br><small>${esc(r.artist)} · ${r.year || "年代不明"}</small><p class="market-evidence">${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "ウェブ調査による参考価格" : "価格情報が見つかっていません"))}</p></div><strong>${marketPriceLabel(r)}</strong><small class="source">確認 ${esc(r.marketPriceChecked || "—")}</small></div>`,
     )
     .join("");
 }
@@ -288,6 +286,12 @@ function aiSourceList(sources = []) {
       try {
         const url = new URL(source.url);
         if (url.protocol !== "https:") return "";
+        const host = url.hostname.toLowerCase();
+        if (
+          host.includes("auctions.yahoo.co.jp") ||
+          host === "jp.mercari.com" ||
+          host.endsWith(".mercari.com")
+        ) return "";
         return `<li><a href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">${esc(source.title || url.hostname)} ↗</a></li>`;
       } catch {
         return "";
@@ -300,7 +304,7 @@ function aiSourceList(sources = []) {
 function showDetail(id) {
   const r = records.find((x) => x.id === id);
   $("#detailContent").innerHTML =
-    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><button class="close" onclick="detailDialog.close()">×</button></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}"><div><p>${r.genre} · ${r.year}</p><h2>${esc(r.title)}</h2><h3>${esc(r.artist)}</h3>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "次回同期時に再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle, r.aAudioUrl)}${trackRow(r, "B", r.bTitle, r.bAudioUrl)}</div><div class="detail-data"><div><span>MARKET</span><b>${yen(r.marketPrice)}</b></div><div><span>PURCHASE</span><b>${yen(r.purchasePrice)}</b></div><div><span>CONDITION</span><b>${r.condition}</b></div><div><span>CATALOG NO.</span><b>${esc(r.catalogNo || "—")}</b></div></div>${aiSourceList(r.aiSources)}${["error", "no_resources", "processing"].includes(r.aiStatus) ? `<button type="button" class="ai-retry" onclick="retryCloudAnalysis('${esc(r.id)}')">画像とウェブ検索で再解析</button>` : ""}<div class="price-source"><span>国内相場を確認</span><p>「${esc(searchTerms(r))}」で検索します</p><div class="source-buttons"><a class="source-yahoo" href="${yahooUrl(r)}" target="_blank" rel="noopener">Yahoo!オークション<br><b>落札相場を見る ↗</b></a><a class="source-mercari" href="${mercariUrl(r)}" target="_blank" rel="noopener">メルカリ<br><b>出品相場を見る ↗</b></a></div></div><p>${esc(r.notes || "メモはありません。")}</p><button class="delete-btn" onclick="removeRecord('${esc(r.id)}')">このレコードを削除</button></div></div>`;
+    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><button class="close" onclick="detailDialog.close()">×</button></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}"><div><p>${r.genre} · ${r.year || "年代不明"}</p><h2>${esc(r.title)}</h2><h3>${esc(r.artist)}</h3>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "次回同期時に再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle, r.aAudioUrl)}${trackRow(r, "B", r.bTitle, r.bAudioUrl)}</div><div class="detail-data"><div><span>MARKET</span><b>${marketPriceLabel(r)}</b></div><div><span>PURCHASE</span><b>${yen(r.purchasePrice)}</b></div><div><span>CONDITION</span><b>${r.condition}</b></div><div><span>CATALOG NO.</span><b>${esc(r.catalogNo || "—")}</b></div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" onclick="retryCloudAnalysis('${esc(r.id)}')">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button class="delete-btn" onclick="removeRecord('${esc(r.id)}')">このレコードを削除</button></div></div>`;
   $("#detailDialog").showModal();
 }
 window.removeRecord = (id) => {
@@ -484,13 +488,13 @@ function saveBatch() {
       year: 0,
       genre: "Other",
       condition: "Very Good+",
-      marketPrice: 0,
+      marketPrice: null,
       purchasePrice: 0,
       catalogNo: "",
       notes: "ジャケット画像を登録済み。自動解析を開始します。",
       cover,
       added: today,
-      priceChecked: today,
+      priceChecked: "",
       trend: 0,
       aiStatus: "pending",
       syncStatus: "pending",
@@ -567,7 +571,9 @@ $("#recordForm").onsubmit = (e) => {
     ...d,
     id: crypto.randomUUID(),
     year: Number(d.year),
-    marketPrice: Number(d.marketPrice),
+    marketPrice: d.marketPrice === "" ? null : Number(d.marketPrice),
+    marketPriceNotes: d.marketPrice === "" ? "" : "手入力の市場価格です。",
+    marketPriceChecked: d.marketPrice === "" ? "" : today,
     purchasePrice: Number(d.purchasePrice),
     cover: coverData,
     added: today,

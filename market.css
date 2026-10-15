@@ -1,61 +1,66 @@
 .market-item {
-  grid-template-columns: 50px 1fr 120px 80px 130px;
+  grid-template-columns: 50px minmax(0, 1fr) 125px 110px;
 }
 
-.market-links {
-  display: flex;
-  gap: 12px;
-  margin-top: 7px;
+.market-evidence {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 5px 0 0;
 }
 
-.market-links a {
+.market-item > strong {
+  color: var(--green);
+  font: 600 17px "DM Mono";
+  text-align: right;
+}
+
+.market-item .source {
   color: var(--muted);
   font: 9px "DM Mono";
-  text-underline-offset: 3px;
+  text-align: right;
 }
 
-.market-links a:hover { color: var(--orange); }
-
-.price-source {
+.market-research {
   background: var(--cream);
   margin-top: 18px;
   padding: 14px;
 }
 
-.price-source > span {
+.market-research > span {
   font: 500 10px "DM Mono";
   letter-spacing: .08em;
 }
 
-.price-source > p {
+.market-research p {
   color: var(--muted);
-  font-size: 10px;
-  margin: 5px 0 12px;
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 6px 0;
 }
 
-.source-buttons {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: 1fr 1fr;
+.market-research small {
+  color: var(--muted);
+  font: 9px "DM Mono";
 }
-
-.source-buttons a {
-  color: #fff;
-  font: 9px/1.6 "DM Mono";
-  padding: 10px;
-  text-decoration: none;
-}
-
-.source-buttons a b { font-size: 11px; }
-.source-yahoo { background: #6b12d9; }
-.source-mercari { background: #e94f28; }
 
 @media (max-width: 900px) {
-  .market-item { grid-template-columns: 50px 1fr 100px; }
-  .market-item .source, .market-item .trend { display: none; }
+  .market-item {
+    grid-template-columns: 50px minmax(0, 1fr) 110px;
+  }
+
+  .market-item .source {
+    display: none;
+  }
 }
 
 @media (max-width: 560px) {
-  .market-links { display: block; }
-  .market-links a { display: block; margin-top: 5px; }
+  .market-item {
+    grid-template-columns: 45px minmax(0, 1fr) 90px;
+    gap: 10px;
+  }
+
+  .market-item > strong {
+    font-size: 14px;
+  }
 }

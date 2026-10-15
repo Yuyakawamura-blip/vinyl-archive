@@ -1,4 +1,4 @@
-const CACHE='vinyl-archive-v17';
+const CACHE='vinyl-archive-v18';
 const ASSETS=['./','./index.html','./styles.css','./ai-sources.css','./market.css','./camera.css','./list-view.css','./tracks.css','./news.css','./batch.css','./sync.css','./cloud-config.js','./cloud-sync.js','./app.js','./manifest.webmanifest'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS))));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE).map(key=>caches.delete(key))))));

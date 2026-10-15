@@ -23,7 +23,7 @@
     />
     <link rel="stylesheet" href="styles.css?v=10" />
     <link rel="stylesheet" href="ai-sources.css?v=1" />
-    <link rel="stylesheet" href="market.css?v=7" />
+    <link rel="stylesheet" href="market.css?v=8" />
     <link rel="stylesheet" href="camera.css?v=10" />
     <link rel="stylesheet" href="list-view.css?v=7" />
     <link rel="stylesheet" href="tracks.css?v=8" />
@@ -124,7 +124,7 @@
             <h2>中古市場価格</h2>
           </div>
           <p class="market-note">
-            参考価格はコンディションや盤・プレスによって変動します。
+            同じ盤のウェブ情報を照合した参考価格です。価格根拠が見つからない場合は「未調査」と表示します。
           </p>
         </div>
         <div class="market-summary" id="marketSummary"></div>
@@ -300,7 +300,7 @@
             </select></label
           >
           <label
-            >参考相場（円）<input
+            >市場価格（円）<input
               name="marketPrice"
               type="number"
               min="0"
@@ -417,7 +417,7 @@
     <div class="toast" id="toast"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"></script>
     <script src="cloud-config.js?v=10"></script>
-    <script src="cloud-sync.js?v=14"></script>
-    <script src="app.js?v=15"></script>
+    <script src="cloud-sync.js?v=15"></script>
+    <script src="app.js?v=16"></script>
   </body>
 </html>
