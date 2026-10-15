@@ -402,6 +402,24 @@
     if (configured && currentUser) syncAll();
     else if (configured) showRequiredLogin();
   };
+  window.retryCloudAnalysis = (recordId) => {
+    const record = localRecords().find((item) => item.id === recordId);
+    if (!record?.coverPath || !currentUser) {
+      window.vinylApp?.notify?.("ログインとジャケット写真が必要です");
+      return;
+    }
+    if (
+      !window.confirm(
+        "画像をGeminiへ送り、Google検索で照合します。検索は月5,000回の無料枠を超えると課金対象になる場合があります。再解析しますか？",
+      )
+    )
+      return;
+    record.aiStatus = "pending";
+    record.aiError = null;
+    window.vinylApp?.replaceRecords?.(window.vinylApp.getRecords());
+    document.querySelector("#detailDialog")?.close();
+    syncAll();
+  };
   window.deleteCloudRecord = (id, coverPath) => {
     setPendingDeletes([...pendingDeletes(), { id, coverPath }]);
     window.queueCloudSync();

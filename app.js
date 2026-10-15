@@ -281,10 +281,26 @@ function esc(s = "") {
       })[m],
   );
 }
+function aiSourceList(sources = []) {
+  if (!Array.isArray(sources) || !sources.length) return "";
+  const links = sources
+    .map((source) => {
+      try {
+        const url = new URL(source.url);
+        if (url.protocol !== "https:") return "";
+        return `<li><a href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">${esc(source.title || url.hostname)} ↗</a></li>`;
+      } catch {
+        return "";
+      }
+    })
+    .filter(Boolean)
+    .join("");
+  return links ? `<div class="ai-sources"><span>AI調査の出典</span><ul>${links}</ul></div>` : "";
+}
 function showDetail(id) {
   const r = records.find((x) => x.id === id);
   $("#detailContent").innerHTML =
-    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><button class="close" onclick="detailDialog.close()">×</button></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}"><div><p>${r.genre} · ${r.year}</p><h2>${esc(r.title)}</h2><h3>${esc(r.artist)}</h3>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "次回同期時に再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle, r.aAudioUrl)}${trackRow(r, "B", r.bTitle, r.bAudioUrl)}</div><div class="detail-data"><div><span>MARKET</span><b>${yen(r.marketPrice)}</b></div><div><span>PURCHASE</span><b>${yen(r.purchasePrice)}</b></div><div><span>CONDITION</span><b>${r.condition}</b></div><div><span>CATALOG NO.</span><b>${esc(r.catalogNo || "—")}</b></div></div><div class="price-source"><span>国内相場を確認</span><p>「${esc(searchTerms(r))}」で検索します</p><div class="source-buttons"><a class="source-yahoo" href="${yahooUrl(r)}" target="_blank" rel="noopener">Yahoo!オークション<br><b>落札相場を見る ↗</b></a><a class="source-mercari" href="${mercariUrl(r)}" target="_blank" rel="noopener">メルカリ<br><b>出品相場を見る ↗</b></a></div></div><p>${esc(r.notes || "メモはありません。")}</p><button class="delete-btn" onclick="removeRecord('${r.id}')">このレコードを削除</button></div></div>`;
+    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><button class="close" onclick="detailDialog.close()">×</button></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}"><div><p>${r.genre} · ${r.year}</p><h2>${esc(r.title)}</h2><h3>${esc(r.artist)}</h3>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "次回同期時に再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle, r.aAudioUrl)}${trackRow(r, "B", r.bTitle, r.bAudioUrl)}</div><div class="detail-data"><div><span>MARKET</span><b>${yen(r.marketPrice)}</b></div><div><span>PURCHASE</span><b>${yen(r.purchasePrice)}</b></div><div><span>CONDITION</span><b>${r.condition}</b></div><div><span>CATALOG NO.</span><b>${esc(r.catalogNo || "—")}</b></div></div>${aiSourceList(r.aiSources)}${["error", "no_resources"].includes(r.aiStatus) ? `<button type="button" class="ai-retry" onclick="retryCloudAnalysis('${esc(r.id)}')">画像とウェブ検索で再解析</button>` : ""}<div class="price-source"><span>国内相場を確認</span><p>「${esc(searchTerms(r))}」で検索します</p><div class="source-buttons"><a class="source-yahoo" href="${yahooUrl(r)}" target="_blank" rel="noopener">Yahoo!オークション<br><b>落札相場を見る ↗</b></a><a class="source-mercari" href="${mercariUrl(r)}" target="_blank" rel="noopener">メルカリ<br><b>出品相場を見る ↗</b></a></div></div><p>${esc(r.notes || "メモはありません。")}</p><button class="delete-btn" onclick="removeRecord('${esc(r.id)}')">このレコードを削除</button></div></div>`;
   $("#detailDialog").showModal();
 }
 window.removeRecord = (id) => {

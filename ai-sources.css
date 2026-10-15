@@ -1,0 +1,35 @@
+.ai-sources {
+  margin-top: 18px;
+  padding: 12px 14px;
+  background: var(--cream);
+  font-size: 11px;
+}
+.ai-sources > span {
+  font: 10px "DM Mono";
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+.ai-sources ul {
+  display: grid;
+  gap: 7px;
+  margin: 9px 0 0;
+  padding-left: 17px;
+}
+.ai-sources a {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.ai-retry {
+  width: 100%;
+  margin-top: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--orange);
+  background: transparent;
+  color: var(--ink);
+  font: 11px "Noto Sans JP";
+  cursor: pointer;
+}
+.ai-retry:hover {
+  background: var(--orange);
+  color: #fff;
+}

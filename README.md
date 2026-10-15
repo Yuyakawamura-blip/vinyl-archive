@@ -18,7 +18,7 @@
 2. 撮影した写真を確認し、不要な写真を取り除きます。
 3. 「まとめてアップロード」を選びます。写真をクラウドへ保存した後、AI解析を自動で開始します。
 
-AIはアーティスト、タイトル、年代、ジャンル、カタログ番号、A面・B面の候補を入力します。画像から判断できない内容や信頼度の低い結果は「AI確認待ち」となります。情報を取得できなかった場合は「AIリソースなし」と表示します。AIの結果は候補として確認してください。
+AIは画像から読み取った文字を手掛かりにGoogle検索で作品情報を照合し、アーティスト、タイトル、年代、ジャンル、カタログ番号、A面・B面の候補と検索出典を記録詳細に表示します。画像や検索から判断できない内容は推測せず、情報を取得できない場合は「AIリソースなし」と表示します。AIの結果は候補として確認してください。
 
 ## Supabase設定
 
@@ -27,7 +27,7 @@ AIはアーティスト、タイトル、年代、ジャンル、カタログ番
 - `public.records` テーブルとユーザーごとのRow Level Securityポリシー
 - 非公開の `record-covers` Storageバケットとユーザーごとのアクセス制御
 - `analyze-record` Edge Function
-- Edge Function Secret `GEMINI_API_KEY`
+- Edge Function Secret `GEMINI_API_KEY`（Google Search Groundingを有効にしたGemini APIプロジェクト）
 
 ### プロジェクトを新しく設定する場合
 
@@ -39,7 +39,7 @@ AIはアーティスト、タイトル、年代、ジャンル、カタログ番
 6. Google AI Studioで利用可能なGemini APIキーを用意し、Supabaseの **Edge Functions → Secrets** で名前を `GEMINI_API_KEY` として登録します。キーをGitHubや `cloud-config.js` に保存しないでください。
 7. GitHub Pagesで `main` ブランチのルートを公開元に設定し、アプリURLを開いてログインと同期を確認します。
 
-Gemini APIの利用枠や速度制限はGoogle AI Studio側のアカウントとプロジェクトの条件に従います。解析に失敗したレコードは再試行待ちとして保持し、次回同期時に再試行します。
+Gemini APIの利用枠や速度制限はGoogle AI Studio側のアカウントとプロジェクトの条件に従います。Google Search GroundingはGemini 3系のFree TierではAPI利用できず、課金対象Tierで月5,000検索リクエストまでは無料、それを超えると1,000リクエストあたり14米ドルです。1回の解析で複数の検索が実行される場合があります。費用と利用状況をGoogle AI Studioで確認してください。解析に失敗したレコードは再試行待ちとして保持し、次回同期時に再試行します。
 
 ## iPhoneで使う
 
@@ -76,5 +76,5 @@ AI解析用のGemini APIキーはSupabase Edge Functionからのみ参照し、�
 - `cloud-config.js`：ブラウザ用のSupabase URLとPublishable Key
 - `cloud-sync.js`：ログイン、自動同期、写真アップロード、AI解析の呼び出し
 - `supabase/schema.sql`：テーブル、RLS、Storageの初期スキーマ
-- `supabase/functions/analyze-record/index.ts`：Geminiによる画像解析
+- `supabase/functions/analyze-record/index.ts`：Gemini画像解析、Google検索照合、出典保存
 - `supabase/migrations/`：スキーマ変更の履歴
