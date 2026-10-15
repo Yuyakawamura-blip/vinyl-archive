@@ -32,8 +32,9 @@ Deno.serve(async request=>{
     const text=gemini.candidates?.[0]?.content?.parts?.[0]?.text;
     if(!text)throw new Error('Gemini returned no result');
     const result=JSON.parse(text);
-    const nextData={...record.data,artist:result.artist||'AI確認待ち',title:result.title||record.data.title,year:Number(result.year)||0,genre:result.genre||'Other',catalogNo:result.catalogNo||'',aTitle:result.aTitle||'',bTitle:result.bTitle||'',notes:[result.notes,`AI信頼度 ${Math.round((Number(result.confidence)||0)*100)}%`].filter(Boolean).join(' / '),aiConfidence:Number(result.confidence)||0,aiNeedsReview:Boolean(result.needsReview)};
-    const aiStatus=result.needsReview||Number(result.confidence)<.75?'review':'complete';
+    const hasUsefulResult=[result.artist,result.title,result.catalogNo,result.aTitle,result.bTitle].some(value=>String(value||'').trim())||Number(result.year)>0;
+    const nextData={...record.data,artist:result.artist||record.data.artist||'AIリソースなし',title:result.title||record.data.title,year:Number(result.year)||0,genre:result.genre||'Other',catalogNo:result.catalogNo||'',aTitle:result.aTitle||'',bTitle:result.bTitle||'',notes:[result.notes,!hasUsefulResult?'画像からレコード情報を取得できませんでした。':'',`AI信頼度 ${Math.round((Number(result.confidence)||0)*100)}%`].filter(Boolean).join(' / '),aiConfidence:Number(result.confidence)||0,aiNeedsReview:Boolean(result.needsReview)};
+    const aiStatus=!hasUsefulResult?'no_resources':result.needsReview||Number(result.confidence)<.75?'review':'complete';
     const {error:updateError}=await client.from('records').update({data:nextData,ai_status:aiStatus,ai_error:null,updated_at:new Date().toISOString()}).eq('id',recordId);
     if(updateError)throw updateError;
     return jsonResponse({ok:true,status:aiStatus});

@@ -3,11 +3,15 @@ create table if not exists public.records (
   user_id uuid not null references auth.users(id) on delete cascade default auth.uid(),
   data jsonb not null default '{}'::jsonb,
   cover_path text,
-  ai_status text not null default 'pending' check (ai_status in ('pending','processing','complete','review','error')),
+  ai_status text not null default 'pending' check (ai_status in ('pending','processing','complete','review','error','no_resources')),
   ai_error text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.records drop constraint if exists records_ai_status_check;
+alter table public.records add constraint records_ai_status_check
+  check (ai_status in ('pending','processing','complete','review','error','no_resources'));
 
 alter table public.records enable row level security;
 grant select, insert, update, delete on public.records to authenticated;
