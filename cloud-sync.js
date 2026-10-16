@@ -178,6 +178,28 @@
     window.vinylApp?.replaceRecords?.(hydrated);
   }
 
+  async function resetStaleAnalyses(items) {
+    const staleBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { data, error } = await client
+      .from("records")
+      .update({
+        ai_status: "pending",
+        ai_error: "解析が長時間完了しなかったため再試行します",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("ai_status", "processing")
+      .lt("updated_at", staleBefore)
+      .select("id");
+    if (error) throw error;
+    const staleIds = new Set((data || []).map((row) => row.id));
+    for (const record of items) {
+      if (staleIds.has(record.id)) {
+        record.aiStatus = "pending";
+        record.aiError = "解析が長時間完了しなかったため再試行します";
+      }
+    }
+  }
+
   async function syncAll() {
     if (!configured || !currentUser || !navigator.onLine) return;
     if (syncing) {
@@ -189,10 +211,32 @@
     try {
       await removePendingRecords();
       const items = localRecords();
-      for (let index = 0; index < items.length; index += 2)
-        await Promise.all(items.slice(index, index + 2).map(uploadRecord));
+      await resetStaleAnalyses(items);
+      const failedUploads = [];
+      for (const record of items) {
+        try {
+          await uploadRecord(record);
+        } catch (error) {
+          console.error(`Could not sync record ${record.id}`, error);
+          record.syncStatus = "pending";
+          failedUploads.push(record);
+        }
+      }
       await downloadRecords();
-      updateStatus("synced", "同期済み");
+      if (failedUploads.length) {
+        const downloaded = window.vinylApp?.getRecords?.() || [];
+        const failedIds = new Set(failedUploads.map((record) => record.id));
+        window.vinylApp?.replaceRecords?.([
+          ...failedUploads,
+          ...downloaded.filter((record) => !failedIds.has(record.id)),
+        ]);
+        updateStatus("error", "一部を同期できません");
+        window.vinylApp?.notify?.(
+          `${failedUploads.length}件を同期できませんでした。ネットワーク復帰後に再試行します`,
+        );
+      } else {
+        updateStatus("synced", "同期済み");
+      }
     } catch (error) {
       console.error(error);
       updateStatus("error", "同期を再試行");
