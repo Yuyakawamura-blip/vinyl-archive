@@ -112,51 +112,55 @@
     }
     record.coverPath = coverPath;
     record.syncStatus = "synced";
-    if (
-      (record.aiRetryRequested ||
-        (!existingRecord && ["pending", "error"].includes(record.aiStatus || "pending")) ||
-        (existingRecord && ["pending", "error"].includes(existingRecord.ai_status))) &&
-      coverPath
-    ) {
-      record.aiStatus = "processing";
-      window.vinylApp?.replaceRecords?.(window.vinylApp.getRecords());
-      const { error: analysisError } = await client.functions.invoke(
-        "analyze-record",
-        { body: { recordId: record.id } },
-      );
-      if (analysisError) {
-        let message = analysisError.message || "AI解析の呼び出しに失敗しました";
-        if (analysisError.context instanceof Response) {
-          try {
-            const text = await analysisError.context.clone().text();
-            try {
-              const body = JSON.parse(text);
-              message = body?.error || body?.message || message;
-            } catch {
-              if (text.trim()) message = text.slice(0, 500);
-            }
-          } catch {}
-        }
-        record.aiStatus = "error";
-        record.aiError = message;
-        const { error: statusError } = await client
-          .from("records")
-          .update({
-            ai_status: "error",
-            ai_error: message,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", record.id);
-        if (statusError)
-          console.error("Could not persist AI analysis error", statusError);
-        window.vinylApp?.replaceRecords?.(window.vinylApp.getRecords());
-        console.warn(
-          "AI analysis request failed; the record will be retried on the next sync",
-          analysisError,
-        );
-      }
-    }
     record.aiRetryRequested = false;
+  }
+
+  async function requestAnalysis(record) {
+    const now = new Date().toISOString();
+    record.aiStatus = "processing";
+    record.aiError = null;
+    window.vinylApp?.replaceRecords?.(window.vinylApp.getRecords());
+    const { error: statusError } = await client
+      .from("records")
+      .update({ ai_status: "processing", ai_error: null, updated_at: now })
+      .eq("id", record.id);
+    if (statusError) throw statusError;
+
+    const { error: analysisError } = await client.functions.invoke(
+      "analyze-record",
+      { body: { recordId: record.id } },
+    );
+    if (!analysisError) return;
+
+    let message = analysisError.message || "AI解析の呼び出しに失敗しました";
+    if (analysisError.context instanceof Response) {
+      try {
+        const text = await analysisError.context.clone().text();
+        try {
+          const body = JSON.parse(text);
+          message = body?.error || body?.message || message;
+        } catch {
+          if (text.trim()) message = text.slice(0, 500);
+        }
+      } catch {}
+    }
+    record.aiStatus = "error";
+    record.aiError = message;
+    const { error: persistError } = await client
+      .from("records")
+      .update({
+        ai_status: "error",
+        ai_error: message,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", record.id);
+    if (persistError)
+      console.error("Could not persist AI analysis error", persistError);
+    window.vinylApp?.replaceRecords?.(window.vinylApp.getRecords());
+    console.warn(
+      "AI analysis request failed; the record will be retried on the next sync",
+      analysisError,
+    );
   }
 
   async function removePendingRecords() {
@@ -300,6 +304,7 @@
       if (remoteError) throw remoteError;
       const remoteById = new Map((remoteRows || []).map((row) => [row.id, row]));
       const failedUploads = [];
+      const analyses = [];
       for (const record of items) {
         const existingRecord = remoteById.get(record.id) || null;
         if (
@@ -309,13 +314,23 @@
         )
           continue;
         try {
+          const shouldAnalyze = Boolean(
+            record.aiRetryRequested ||
+              (!existingRecord && ["pending", "error"].includes(record.aiStatus || "pending")) ||
+              (existingRecord && ["pending", "error"].includes(existingRecord.ai_status)),
+          );
           await uploadRecord(record, existingRecord);
+          if (shouldAnalyze && record.coverPath)
+            analyses.push(requestAnalysis(record));
         } catch (error) {
           console.error(`Could not sync record ${record.id}`, error);
           record.syncStatus = "pending";
           failedUploads.push(record);
         }
       }
+      // Upload every photo and persist every record before starting potentially
+      // long-running AI requests. iOS may suspend the page as soon as it locks.
+      await Promise.all(analyses);
       await downloadRecords();
       if (failedUploads.length) {
         const downloaded = window.vinylApp?.getRecords?.() || [];

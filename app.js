@@ -67,6 +67,7 @@ const demo = [
 ];
 let records = [];
 let filter = "All";
+let listSortDirection = "desc";
 let coverData = "";
 let cameraStream = null;
 let cameraMode = "manual";
@@ -167,20 +168,39 @@ function render() {
   );
   const q = $("#searchInput").value.toLowerCase(),
     sort = $("#sortSelect").value;
+  const artistSelect = $("#listArtistFilter"),
+    genreSelect = $("#listGenreFilter"),
+    selectedArtist = artistSelect.value || "All",
+    selectedGenre = genreSelect.value || "All",
+    artists = [...new Set(records.map((r) => r.artist).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ja")),
+    listGenres = [...new Set(records.map((r) => r.genre).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ja"));
+  artistSelect.innerHTML = `<option value="All">すべて</option>${artists.map((artist) => `<option value="${esc(artist)}">${esc(artist)}</option>`).join("")}`;
+  genreSelect.innerHTML = `<option value="All">すべて</option>${listGenres.map((genre) => `<option value="${esc(genre)}">${esc(genre)}</option>`).join("")}`;
+  artistSelect.value = artists.includes(selectedArtist) ? selectedArtist : "All";
+  genreSelect.value = listGenres.includes(selectedGenre) ? selectedGenre : "All";
+  const listMode = viewMode === "list";
+  $("#listControls").classList.toggle("hidden", !listMode);
+  $("#listSortDirection").textContent = listSortDirection === "desc" ? "降順 ↓" : "昇順 ↑";
   let shown = records.filter(
     (r) =>
       (filter === "All" || r.genre === filter) &&
+      (!listMode || (artistSelect.value === "All" || r.artist === artistSelect.value)) &&
+      (!listMode || (genreSelect.value === "All" || r.genre === genreSelect.value)) &&
       [r.artist, r.title, r.year, r.genre].join(" ").toLowerCase().includes(q),
   );
-  shown.sort((a, b) =>
-    sort === "artist"
-      ? a.artist.localeCompare(b.artist)
-      : sort === "year"
-        ? b.year - a.year
-        : sort === "price"
-          ? Number(b.marketPrice || 0) - Number(a.marketPrice || 0)
-          : String(b.added).localeCompare(a.added),
-  );
+  const compare = (a, b) => {
+    if (sort === "artist") return (a.artist || "").localeCompare(b.artist || "", "ja");
+    if (sort === "genre") return (a.genre || "").localeCompare(b.genre || "", "ja");
+    if (sort === "title") return (a.title || "").localeCompare(b.title || "", "ja");
+    if (sort === "year") return Number(a.year || 0) - Number(b.year || 0);
+    if (sort === "price") return Number(a.marketPrice || 0) - Number(b.marketPrice || 0);
+    return String(a.added || "").localeCompare(String(b.added || ""));
+  };
+  const direction = listMode
+    ? (listSortDirection === "desc" ? -1 : 1)
+    : ["artist", "genre", "title"].includes(sort) ? 1 : -1;
+  shown.sort((a, b) => compare(a, b) * direction);
+  $("#listResultCount").textContent = `${shown.length} / ${records.length} 枚`;
   $("#recordGrid").innerHTML = shown.map(card).join("");
   $("#recordGrid").classList.toggle("list-view", viewMode === "list");
   $("#gridViewBtn").classList.toggle("active", viewMode === "grid");
@@ -609,6 +629,19 @@ $("#gridViewBtn").onclick = () => setViewMode("grid");
 $("#listViewBtn").onclick = () => setViewMode("list");
 $("#searchInput").oninput = render;
 $("#sortSelect").onchange = render;
+$("#listArtistFilter").onchange = render;
+$("#listGenreFilter").onchange = render;
+$("#listSortDirection").onclick = () => {
+  listSortDirection = listSortDirection === "desc" ? "asc" : "desc";
+  render();
+};
+$("#clearListFilters").onclick = () => {
+  $("#listArtistFilter").value = "All";
+  $("#listGenreFilter").value = "All";
+  $("#searchInput").value = "";
+  filter = "All";
+  render();
+};
 document.querySelectorAll(".nav-link").forEach(
   (b) =>
     (b.onclick = () => {
