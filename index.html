@@ -368,6 +368,12 @@
         <p class="sync-login-message" id="syncAuthMessage" role="status">
           メールアドレスとパスワードでログインしてください。
         </p>
+        <button class="local-continue" id="continueLocal" type="button">
+          ログインせず、端末内だけで続ける
+        </button>
+        <small class="local-only-note" id="localOnlyNote">
+          端末内だけに保存され、ほかの端末には同期されません。後からログインできます。
+        </small>
         <div class="account-panel" id="accountPanel" hidden>
           <p>ログイン中のアカウント</p>
           <strong id="accountEmail"></strong>
@@ -385,7 +391,7 @@
     <div class="toast" id="toast"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"></script>
     <script src="cloud-config.js?v=10"></script>
-    <script src="cloud-sync.js?v=18"></script>
+    <script src="cloud-sync.js?v=19"></script>
     <script src="app.js?v=18"></script>
   </body>
 </html>

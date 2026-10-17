@@ -15,6 +15,7 @@
   let authTransition = Promise.resolve();
   const lastCloudUserKey = "vinyl-archive-last-cloud-user";
   const pendingDeleteKey = "vinyl-archive-pending-deletes";
+  const localModeKey = "vinyl-archive-local-mode";
   const $ = (selector) => document.querySelector(selector);
 
   function updateStatus(state, label) {
@@ -346,8 +347,12 @@
     }
   }
 
-  function showRequiredLogin() {
+  function showRequiredLogin(force = false) {
     const dialog = $("#syncDialog");
+    if (!force && localStorage.getItem(localModeKey) === "true") {
+      updateStatus("local", "端末内のみ");
+      return;
+    }
     setAuthMode("login");
     if (dialog && !dialog.open) dialog.showModal();
     updateStatus("required", "ログインが必要");
@@ -361,6 +366,8 @@
     $("#authModeSwitch").hidden = isUpdate || isAccount;
     $("#syncAuthForm").hidden = isAccount;
     $("#accountPanel").hidden = !isAccount;
+    $("#continueLocal").hidden = isUpdate || isAccount;
+    $("#localOnlyNote").hidden = isUpdate || isAccount;
     $("#authLoginMode").classList.toggle("active", mode === "login");
     $("#authSignupMode").classList.toggle("active", isSignup);
     $("#authLoginMode").setAttribute("aria-selected", String(mode === "login"));
@@ -486,10 +493,13 @@
             return;
           }
           const previousUserId = localStorage.getItem(lastCloudUserKey);
+          const preserveLocal =
+            !previousUserId || localStorage.getItem(localModeKey) === "true";
           await window.vinylApp?.selectCloudCollection?.(
             nextUser.id,
-            !previousUserId,
+            preserveLocal,
           );
+          localStorage.removeItem(localModeKey);
           localStorage.setItem(lastCloudUserKey, nextUser.id);
           activeUserId = nextUser.id;
           currentUser = nextUser;
@@ -525,10 +535,13 @@
       }
       if (activeUserId === nextUser.id) return;
       const previousUserId = localStorage.getItem(lastCloudUserKey);
+      const preserveLocal =
+        !previousUserId || localStorage.getItem(localModeKey) === "true";
       await window.vinylApp?.selectCloudCollection?.(
         nextUser.id,
-        !previousUserId,
+        preserveLocal,
       );
+      localStorage.removeItem(localModeKey);
       localStorage.setItem(lastCloudUserKey, nextUser.id);
       activeUserId = nextUser.id;
       currentUser = nextUser;
@@ -546,6 +559,18 @@
     if (configured && currentUser) syncAll();
     else if (configured) showRequiredLogin();
   };
+  $("#continueLocal")?.addEventListener("click", async () => {
+    try {
+      localStorage.setItem(localModeKey, "true");
+      $("#syncDialog")?.close();
+      updateStatus("local", "端末内のみ");
+      window.vinylApp?.notify?.("端末内モードで続けます。同期は行われません");
+    } catch (error) {
+      window.vinylApp?.notify?.(
+        `端末内モードに切り替えられませんでした: ${error?.message || "保存エラー"}`,
+      );
+    }
+  });
   window.retryCloudAnalysis = (recordId) => {
     const record = localRecords().find((item) => item.id === recordId);
     if (!record?.coverPath || !currentUser) {
@@ -612,6 +637,6 @@
     if (!configured)
       return window.vinylApp?.notify?.("クラウド同期の接続設定中です");
     if (currentUser) syncAll();
-    else showRequiredLogin();
+    else showRequiredLogin(true);
   });
 })();
