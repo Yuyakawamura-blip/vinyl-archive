@@ -22,6 +22,20 @@ create policy "records_insert_own" on public.records for insert to authenticated
 create policy "records_update_own" on public.records for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 create policy "records_delete_own" on public.records for delete to authenticated using ((select auth.uid()) = user_id);
 
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+    and not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = 'records'
+    ) then
+    execute 'alter publication supabase_realtime add table public.records';
+  end if;
+end
+$$;
+
 insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types)
 values ('record-covers','record-covers',false,10485760,array['image/jpeg','image/png','image/webp','image/heic','image/heif'])
 on conflict (id) do nothing;

@@ -5,6 +5,9 @@
   );
   let client = null;
   let currentUser = null;
+  let recordsChannel = null;
+  let pullTimer = null;
+  let pulling = false;
   let syncing = false;
   let rerun = false;
   let authMode = "login";
@@ -39,6 +42,8 @@
     delete copy.cover;
     delete copy.coverPath;
     delete copy.syncStatus;
+    delete copy.aiRetryRequested;
+    delete copy.coverUrlExpiresAt;
     return copy;
   }
   function pendingDeletes() {
@@ -52,9 +57,9 @@
     localStorage.setItem(pendingDeleteKey, JSON.stringify([...new Set(ids)]));
   }
 
-  async function uploadRecord(record) {
-    let coverPath = record.coverPath || null;
-    if (record.cover?.startsWith("data:image/")) {
+  async function uploadRecord(record, existingRecord = null) {
+    let coverPath = existingRecord?.cover_path || record.coverPath || null;
+    if (!existingRecord && record.cover?.startsWith("data:image/")) {
       const blob = dataUrlToBlob(record.cover),
         extension =
           {
@@ -72,23 +77,44 @@
         });
       if (uploadError) throw uploadError;
     }
-    const now = new Date().toISOString();
-    const { error } = await client.from("records").upsert(
-      {
-        id: record.id,
-        user_id: currentUser.id,
-        data: cleanRecord(record),
-        cover_path: coverPath,
-        ai_status: record.aiStatus || "pending",
-        updated_at: now,
-      },
-      { onConflict: "id" },
-    );
-    if (error) throw error;
+    if (!existingRecord) {
+      const now = new Date().toISOString();
+      const { error } = await client.from("records").upsert(
+        {
+          id: record.id,
+          user_id: currentUser.id,
+          data: cleanRecord(record),
+          cover_path: coverPath,
+          ai_status: record.aiStatus || "pending",
+          updated_at: now,
+        },
+        { onConflict: "id" },
+      );
+      if (error) throw error;
+    } else if (!coverPath && record.cover?.startsWith("data:image/")) {
+      const blob = dataUrlToBlob(record.cover);
+      const extension =
+        { "image/png": "png", "image/webp": "webp" }[blob.type] || "jpg";
+      coverPath = `${currentUser.id}/${record.id}.${extension}`;
+      const { error: uploadError } = await client.storage
+        .from("record-covers")
+        .upload(coverPath, blob, {
+          contentType: blob.type || "image/jpeg",
+          upsert: true,
+        });
+      if (uploadError) throw uploadError;
+      const { error } = await client
+        .from("records")
+        .update({ cover_path: coverPath, updated_at: new Date().toISOString() })
+        .eq("id", record.id);
+      if (error) throw error;
+    }
     record.coverPath = coverPath;
     record.syncStatus = "synced";
     if (
-      ["pending", "error"].includes(record.aiStatus || "pending") &&
+      (record.aiRetryRequested ||
+        (!existingRecord && ["pending", "error"].includes(record.aiStatus || "pending")) ||
+        (existingRecord && ["pending", "error"].includes(existingRecord.ai_status))) &&
       coverPath
     ) {
       record.aiStatus = "processing";
@@ -129,6 +155,7 @@
         );
       }
     }
+    record.aiRetryRequested = false;
   }
 
   async function removePendingRecords() {
@@ -155,27 +182,81 @@
       .select("id,data,cover_path,ai_status,ai_error,updated_at")
       .order("created_at", { ascending: false });
     if (error) throw error;
+    const existingById = new Map(localRecords().map((record) => [record.id, record]));
     const hydrated = await Promise.all(
       (data || []).map(async (row) => {
         let cover = "";
+        let coverUrlExpiresAt = 0;
         if (row.cover_path) {
-          const { data: signed } = await client.storage
-            .from("record-covers")
-            .createSignedUrl(row.cover_path, 60 * 60 * 24 * 7);
-          cover = signed?.signedUrl || "";
+          const cached = existingById.get(row.id);
+          if (
+            cached?.coverPath === row.cover_path &&
+            cached.cover &&
+            !cached.cover.startsWith("data:image/") &&
+            Number(cached.coverUrlExpiresAt) > Date.now() + 60 * 1000
+          ) {
+            cover = cached.cover;
+            coverUrlExpiresAt = Number(cached.coverUrlExpiresAt);
+          } else {
+            const { data: signed } = await client.storage
+              .from("record-covers")
+              .createSignedUrl(row.cover_path, 60 * 60 * 24 * 7);
+            cover = signed?.signedUrl || "";
+            coverUrlExpiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+          }
         }
         return {
           ...row.data,
           id: row.id,
           cover,
           coverPath: row.cover_path,
+          coverUrlExpiresAt,
           aiStatus: row.ai_status,
           aiError: row.ai_error,
           syncStatus: "synced",
         };
       }),
     );
-    window.vinylApp?.replaceRecords?.(hydrated);
+    const remoteIds = new Set(hydrated.map((record) => record.id));
+    const localOnly = localRecords().filter(
+      (record) =>
+        !remoteIds.has(record.id) &&
+        (record.syncStatus === "pending" || record.cover?.startsWith("data:image/")),
+    );
+    window.vinylApp?.replaceRecords?.([...localOnly, ...hydrated]);
+  }
+
+  function subscribeToRecords(userId) {
+    if (recordsChannel) client.removeChannel(recordsChannel);
+    recordsChannel = client
+      .channel(`records-sync-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "records",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          clearTimeout(pullTimer);
+          pullTimer = setTimeout(async () => {
+            if (syncing || pulling || !currentUser || currentUser.id !== userId) return;
+            pulling = true;
+            try {
+              await downloadRecords();
+            } catch (error) {
+              console.warn("Could not refresh records from Realtime", error);
+            } finally {
+              pulling = false;
+            }
+          }, 350);
+        },
+      )
+      .subscribe((status, error) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT")
+          console.warn("Realtime record sync is unavailable", error || status);
+      });
   }
 
   async function resetStaleAnalyses(items) {
@@ -212,10 +293,22 @@
       await removePendingRecords();
       const items = localRecords();
       await resetStaleAnalyses(items);
+      const { data: remoteRows, error: remoteError } = await client
+        .from("records")
+        .select("id,cover_path,ai_status");
+      if (remoteError) throw remoteError;
+      const remoteById = new Map((remoteRows || []).map((row) => [row.id, row]));
       const failedUploads = [];
       for (const record of items) {
+        const existingRecord = remoteById.get(record.id) || null;
+        if (
+          existingRecord &&
+          !record.aiRetryRequested &&
+          !["pending", "error"].includes(existingRecord.ai_status)
+        )
+          continue;
         try {
-          await uploadRecord(record);
+          await uploadRecord(record, existingRecord);
         } catch (error) {
           console.error(`Could not sync record ${record.id}`, error);
           record.syncStatus = "pending";
@@ -400,12 +493,18 @@
           localStorage.setItem(lastCloudUserKey, nextUser.id);
           activeUserId = nextUser.id;
           currentUser = nextUser;
+          subscribeToRecords(nextUser.id);
           $("#accountStatus").hidden = false;
           $("#syncDialog")?.close();
           await syncAll();
           return;
         }
         currentUser = null;
+        if (recordsChannel) {
+          client.removeChannel(recordsChannel);
+          recordsChannel = null;
+        }
+        clearTimeout(pullTimer);
         if (activeUserId)
           await window.vinylApp?.selectCloudCollection?.(null, false);
         activeUserId = null;
@@ -433,6 +532,7 @@
       localStorage.setItem(lastCloudUserKey, nextUser.id);
       activeUserId = nextUser.id;
       currentUser = nextUser;
+      subscribeToRecords(nextUser.id);
       $("#accountStatus").hidden = false;
       await syncAll();
     }).catch((error) => {
@@ -460,6 +560,7 @@
       return;
     record.aiStatus = "pending";
     record.aiError = null;
+    record.aiRetryRequested = true;
     window.vinylApp?.replaceRecords?.(window.vinylApp.getRecords());
     document.querySelector("#detailDialog")?.close();
     syncAll();
