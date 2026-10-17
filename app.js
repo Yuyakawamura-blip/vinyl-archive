@@ -192,6 +192,7 @@ function render() {
     if (sort === "artist") return (a.artist || "").localeCompare(b.artist || "", "ja");
     if (sort === "genre") return (a.genre || "").localeCompare(b.genre || "", "ja");
     if (sort === "title") return (a.title || "").localeCompare(b.title || "", "ja");
+    if (sort === "catalogNo") return (a.catalogNo || "").localeCompare(b.catalogNo || "", "ja");
     if (sort === "year") return Number(a.year || 0) - Number(b.year || 0);
     if (sort === "price") return Number(a.marketPrice || 0) - Number(b.marketPrice || 0);
     return String(a.added || "").localeCompare(String(b.added || ""));
@@ -201,15 +202,36 @@ function render() {
     : ["artist", "genre", "title"].includes(sort) ? 1 : -1;
   shown.sort((a, b) => compare(a, b) * direction);
   $("#listResultCount").textContent = `${shown.length} / ${records.length} 枚`;
-  $("#recordGrid").innerHTML = shown.map(card).join("");
+  $("#recordGrid").innerHTML = listMode
+    ? listTable(shown, sort)
+    : shown.map(card).join("");
   $("#recordGrid").classList.toggle("list-view", viewMode === "list");
+  $("#sortSelect").classList.toggle("hidden", listMode);
   $("#gridViewBtn").classList.toggle("active", viewMode === "grid");
   $("#listViewBtn").classList.toggle("active", viewMode === "list");
   $("#emptyState").classList.toggle("hidden", records.length > 0);
   $("#recordGrid").classList.toggle("hidden", records.length === 0);
-  document
-    .querySelectorAll(".card")
-    .forEach((c) => (c.onclick = () => showDetail(c.dataset.id)));
+  document.querySelectorAll(".card").forEach((c) => (c.onclick = () => showDetail(c.dataset.id)));
+  document.querySelectorAll(".record-table [data-sort]").forEach((button) => {
+    button.onclick = () => {
+      const nextSort = button.dataset.sort;
+      if (sort === nextSort) listSortDirection = listSortDirection === "asc" ? "desc" : "asc";
+      else {
+        $("#sortSelect").value = nextSort;
+        listSortDirection = nextSort === "added" || nextSort === "price" ? "desc" : "asc";
+      }
+      render();
+    };
+  });
+  document.querySelectorAll(".record-table tbody tr").forEach((row) => {
+    row.onclick = () => showDetail(row.dataset.id);
+    row.onkeydown = (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        showDetail(row.dataset.id);
+      }
+    };
+  });
   renderMarket();
   renderNews();
 }
@@ -260,30 +282,44 @@ function card(r) {
               : "";
   return `<article class="card" data-id="${r.id}"><div class="cover"><img src="${r.cover || placeholder(r)}" alt="${esc(r.title)}のジャケット">${aiLabel ? `<span class="ai-status ${r.aiStatus}">${aiLabel}</span>` : ""}</div><div class="card-meta"><p>${esc(r.artist)} · ${r.year || "—"}</p><h3>${esc(r.title)}</h3>${trackSummary(r)}<div class="price-row"><span>${r.genre}</span><b>${marketPriceLabel(r)}</b></div><small class="added-date">追加日 ${esc(formatArchiveDate(r.added))}</small></div></article>`;
 }
+function listTable(shown, sort) {
+  const columns = [
+    ["title", "タイトル"],
+    ["artist", "アーティスト"],
+    ["year", "リリース年"],
+    ["added", "追加日"],
+    ["genre", "ジャンル"],
+    ["price", "参考価格"],
+    ["catalogNo", "カタログ番号"],
+  ];
+  const headers = columns.map(([key, label]) => {
+    const active = sort === key;
+    const arrow = active ? (listSortDirection === "asc" ? " ↑" : " ↓") : "";
+    return `<th scope="col" aria-sort="${active ? (listSortDirection === "asc" ? "ascending" : "descending") : "none"}"><button type="button" data-sort="${key}"${active ? ' class="sorted"' : ""}>${label}${arrow}</button></th>`;
+  }).join("");
+  const rows = shown.map((r) => `<tr data-id="${esc(r.id)}" tabindex="0" aria-label="${esc(r.artist)} - ${esc(r.title)}">
+    <td class="record-table-cover"><img src="${r.cover || placeholder(r)}" alt="${esc(r.title)}のジャケット"></td>
+    <td class="record-table-title"><strong>${esc(r.title || "タイトル不明")}</strong>${r.aiStatus === "processing" ? '<small class="record-table-status">AI解析中</small>' : ""}</td>
+    <td>${esc(r.artist || "—")}</td><td>${r.year || "—"}</td>
+    <td>${esc(formatArchiveDate(r.added))}</td><td>${esc(r.genre || "—")}</td>
+    <td>${marketPriceLabel(r)}</td><td>${esc(r.catalogNo || "—")}</td>
+  </tr>`).join("");
+  return `<div class="record-table-scroll"><table class="record-table"><thead><tr><th class="cover-heading" scope="col">写真</th>${headers}</tr></thead><tbody>${rows || '<tr><td class="table-no-results" colspan="8">条件に合うレコードがありません</td></tr>'}</tbody></table></div>`;
+}
 function placeholder(r) {
   return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#1d2e43"/><circle cx="430" cy="170" r="190" fill="#e94f28"/><text x="42" y="465" font-size="54" fill="#f2eee5" font-family="serif">${esc(r.title).slice(0, 16)}</text><text x="45" y="515" font-size="21" fill="#dfba62" font-family="sans-serif">${esc(r.artist)}</text></svg>`)}`;
 }
 function youtubeSearch(r, track) {
   return `https://www.youtube.com/results?search_query=${encodeURIComponent([r.artist, track].filter(Boolean).join(" "))}`;
 }
-function soundcloudSearch(r, track) {
-  return `https://soundcloud.com/search/sounds?q=${encodeURIComponent([r.artist, track].filter(Boolean).join(" "))}`;
-}
 function appleMusicSearch(r, track) {
   return `music://music.apple.com/jp/search?term=${encodeURIComponent([r.artist, track].filter(Boolean).join(" "))}`;
 }
-function spotifySearch(r, track) {
-  return `https://open.spotify.com/search/${encodeURIComponent([r.artist, track].filter(Boolean).join(" "))}`;
-}
-function safeAudioUrl(url) {
-  return /^https?:\/\//i.test(url || "") ? url : "";
-}
-function trackRow(r, side, title, directUrl) {
+function trackRow(r, side, title) {
   if (!title)
     return `<div class="track-row empty-track"><b>${side}</b><span>${side === "B" ? "未確認" : "曲名未登録"}</span></div>`;
-  const direct = safeAudioUrl(directUrl);
   const review = side === "B" && r.bTitleVerified !== true;
-  return `<div class="track-row"><b>${side}</b><span>${esc(title)}${review ? "（要確認）" : ""}</span><div class="listen-links"><a class="listen-apple" href="${appleMusicSearch(r, title)}" aria-label="Apple Musicアプリで検索"> Musicアプリ ↗</a><a class="listen-spotify" href="${spotifySearch(r, title)}" target="_blank" rel="noopener">Spotify</a>${direct ? `<a href="${esc(direct)}" target="_blank" rel="noopener">登録音源</a>` : ""}<a href="${youtubeSearch(r, title)}" target="_blank" rel="noopener">YouTube</a><a href="${soundcloudSearch(r, title)}" target="_blank" rel="noopener">SoundCloud</a></div></div>`;
+  return `<div class="track-row"><b>${side}</b><span>${esc(title)}${review ? "（要確認）" : ""}</span><div class="listen-links"><a class="listen-apple" href="${appleMusicSearch(r, title)}" aria-label="Apple Musicアプリで検索"> Music ↗</a><a href="${youtubeSearch(r, title)}" target="_blank" rel="noopener">YouTube</a></div></div>`;
 }
 function renderMarket() {
   const pricedRecords = records.filter((r) => Number(r.marketPrice) > 0),
@@ -337,7 +373,7 @@ function aiSourceList(sources = []) {
 function showDetail(id) {
   const r = records.find((x) => x.id === id);
   $("#detailContent").innerHTML =
-    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><button class="close" onclick="detailDialog.close()">×</button></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}"><div><p>${r.genre} · ${r.year || "年代不明"}</p><h2>${esc(r.title)}</h2><h3>${esc(r.artist)}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "次回同期時に再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle, r.aAudioUrl)}${trackRow(r, "B", r.bTitle, r.bAudioUrl)}</div><div class="detail-data"><div><span>MARKET</span><b>${marketPriceLabel(r)}</b></div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" onclick="retryCloudAnalysis('${esc(r.id)}')">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button class="delete-btn" onclick="removeRecord('${esc(r.id)}')">このレコードを削除</button></div></div>`;
+    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><button class="close" onclick="detailDialog.close()">×</button></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}"><div><p>${r.genre} · ${r.year || "年代不明"}</p><h2>${esc(r.title)}</h2><h3>${esc(r.artist)}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "次回同期時に再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET</span><b>${marketPriceLabel(r)}</b></div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" onclick="retryCloudAnalysis('${esc(r.id)}')">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button class="delete-btn" onclick="removeRecord('${esc(r.id)}')">このレコードを削除</button></div></div>`;
   $("#detailDialog").showModal();
 }
 window.removeRecord = (id) => {

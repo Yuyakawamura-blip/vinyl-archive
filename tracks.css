@@ -85,12 +85,6 @@
   font-weight: 500;
   order: -2;
 }
-.listen-links .listen-spotify {
-  border-color: #1db954;
-  color: #137c3b;
-  font-weight: 500;
-  order: -1;
-}
 .empty-track {
   color: var(--muted);
 }
