@@ -351,7 +351,7 @@ function card(r) {
       : r.aiStatus === "review"
         ? "AI確認待ち"
         : r.aiStatus === "error"
-          ? "AI再試行待ち"
+          ? "AI解析エラー"
           : r.aiStatus === "pending"
             ? "AI解析待ち"
             : r.aiStatus === "no_resources"
@@ -501,7 +501,7 @@ function showDetail(id, editing = false) {
     : `<button type="button" class="secondary edit-btn" id="editRecord"${aiBusy ? ' disabled title="AI解析が終わると編集できます"' : ""}>編集</button>`;
   const body = editing
     ? `<div><p class="eyebrow">EDIT RECORD</p>${detailEditor(r)}</div>`
-    : `<div><p>${r.genre} · ${r.year || "年代不明"}</p><h2>${esc(r.title)}</h2><h3>${esc(r.artist)}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "次回同期時に再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET${priceBasisLabels[r.marketPriceBasis] && Number(r.marketPrice) > 0 ? ` · ${priceBasisLabels[r.marketPriceBasis]}` : ""}</span>${marketPriceHtml(r)}</div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${r.aiNotes ? `<div class="market-research"><span>AI解析メモ</span><p>${esc(r.aiNotes)}</p></div>` : ""}${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" onclick="retryCloudAnalysis('${esc(r.id)}')">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button class="delete-btn" onclick="removeRecord('${esc(r.id)}')">このレコードを削除</button></div>`;
+    : `<div><p>${r.genre} · ${r.year || "年代不明"}</p><h2>${esc(r.title)}</h2><h3>${esc(r.artist)}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "自動で再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET${priceBasisLabels[r.marketPriceBasis] && Number(r.marketPrice) > 0 ? ` · ${priceBasisLabels[r.marketPriceBasis]}` : ""}</span>${marketPriceHtml(r)}</div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${r.aiNotes ? `<div class="market-research"><span>AI解析メモ</span><p>${esc(r.aiNotes)}</p></div>` : ""}${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" onclick="retryCloudAnalysis('${esc(r.id)}')">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button class="delete-btn" onclick="removeRecord('${esc(r.id)}')">このレコードを削除</button></div>`;
   $("#detailContent").innerHTML =
     `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><div class="detail-head-actions">${editButton}<button class="close" onclick="detailDialog.close()">×</button></div></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}">${body}</div>`;
   if (editing) {

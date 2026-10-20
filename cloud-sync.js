@@ -98,7 +98,8 @@
           user_id: currentUser.id,
           data: cleanRecord(record),
           cover_path: coverPath,
-          ai_status: record.aiStatus || "pending",
+          // Records without a photo have nothing for the AI to read.
+          ai_status: record.aiStatus || (coverPath ? "pending" : "complete"),
           updated_at: now,
         },
         { onConflict: "id" },
@@ -124,57 +125,27 @@
         .eq("id", record.id);
       if (error) throw error;
     }
+    if (existingRecord && record.aiRetryRequested) {
+      // Back to pending gives the server queue a fresh set of attempts.
+      const { error } = await client
+        .from("records")
+        .update({ ai_status: "pending", ai_error: null, updated_at: new Date().toISOString() })
+        .eq("id", record.id);
+      if (error) throw error;
+    }
     record.coverPath = coverPath;
     record.syncStatus = "synced";
     record.aiRetryRequested = false;
   }
 
-  async function requestAnalysis(record) {
-    const now = new Date().toISOString();
-    record.aiStatus = "processing";
-    record.aiError = null;
-    window.vinylApp?.replaceRecords?.(window.vinylApp.getRecords());
-    const { error: statusError } = await client
-      .from("records")
-      .update({ ai_status: "processing", ai_error: null, updated_at: now })
-      .eq("id", record.id);
-    if (statusError) throw statusError;
-
-    const { error: analysisError } = await client.functions.invoke(
-      "analyze-record",
-      { body: { recordId: record.id } },
-    );
-    if (!analysisError) return;
-
-    let message = analysisError.message || "AI解析の呼び出しに失敗しました";
-    if (analysisError.context instanceof Response) {
-      try {
-        const text = await analysisError.context.clone().text();
-        try {
-          const body = JSON.parse(text);
-          message = body?.error || body?.message || message;
-        } catch {
-          if (text.trim()) message = text.slice(0, 500);
-        }
-      } catch {}
-    }
-    record.aiStatus = "error";
-    record.aiError = message;
-    const { error: persistError } = await client
-      .from("records")
-      .update({
-        ai_status: "error",
-        ai_error: message,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", record.id);
-    if (persistError)
-      console.error("Could not persist AI analysis error", persistError);
-    window.vinylApp?.replaceRecords?.(window.vinylApp.getRecords());
-    console.warn(
-      "AI analysis request failed; the record will be retried on the next sync",
-      analysisError,
-    );
+  // The server analyzes pending records on its own (pg_cron, every minute);
+  // this only asks it to start right away, so a failure here is not an error.
+  async function startAnalysis(record) {
+    const { error } = await client.functions.invoke("analyze-record", {
+      body: { recordId: record.id },
+    });
+    if (error)
+      console.warn("Could not start AI analysis now; the server will pick it up", error);
   }
 
   async function removePendingRecords() {
@@ -284,28 +255,6 @@
       });
   }
 
-  async function resetStaleAnalyses(items) {
-    const staleBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-    const { data, error } = await client
-      .from("records")
-      .update({
-        ai_status: "pending",
-        ai_error: "解析が長時間完了しなかったため再試行します",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("ai_status", "processing")
-      .lt("updated_at", staleBefore)
-      .select("id");
-    if (error) throw error;
-    const staleIds = new Set((data || []).map((row) => row.id));
-    for (const record of items) {
-      if (staleIds.has(record.id)) {
-        record.aiStatus = "pending";
-        record.aiError = "解析が長時間完了しなかったため再試行します";
-      }
-    }
-  }
-
   async function syncAll() {
     if (!configured || !currentUser || !navigator.onLine) return;
     if (syncing) {
@@ -317,7 +266,6 @@
     try {
       await removePendingRecords();
       const items = localRecords();
-      await resetStaleAnalyses(items);
       const { data: remoteRows, error: remoteError } = await client
         .from("records")
         .select("id,cover_path,ai_status");
@@ -328,31 +276,22 @@
       for (const record of items) {
         const existingRecord = remoteById.get(record.id) || null;
         const edited = Boolean(existingRecord) && record.syncStatus === "pending";
-        if (
-          existingRecord &&
-          !edited &&
-          !record.aiRetryRequested &&
-          !["pending", "error"].includes(existingRecord.ai_status)
-        )
-          continue;
+        const missingCover = Boolean(existingRecord && !existingRecord.cover_path && localCover(record));
+        if (existingRecord && !edited && !record.aiRetryRequested && !missingCover) continue;
         try {
           // A manual edit must not trigger an AI pass that would overwrite it.
-          const shouldAnalyze = !edited && Boolean(
-            record.aiRetryRequested ||
-              (!existingRecord && ["pending", "error"].includes(record.aiStatus || "pending")) ||
-              (existingRecord && ["pending", "error"].includes(existingRecord.ai_status)),
-          );
+          const shouldAnalyze =
+            record.aiRetryRequested || (!edited && (!existingRecord || missingCover));
           await uploadRecord(record, existingRecord);
-          if (shouldAnalyze && record.coverPath)
-            analyses.push(requestAnalysis(record));
+          if (shouldAnalyze && record.coverPath) analyses.push(startAnalysis(record));
         } catch (error) {
           console.error(`Could not sync record ${record.id}`, error);
           record.syncStatus = "pending";
           failedUploads.push(record);
         }
       }
-      // Upload every photo and persist every record before starting potentially
-      // long-running AI requests. iOS may suspend the page as soon as it locks.
+      // Upload every photo and persist every record before asking the server to
+      // start; iOS may suspend the page as soon as it locks.
       await Promise.all(analyses);
       await downloadRecords();
       if (failedUploads.length) {

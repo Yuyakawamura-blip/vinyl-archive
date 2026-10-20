@@ -1,5 +1,8 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import {createClient} from 'jsr:@supabase/supabase-js@2';
+import {createClient, type SupabaseClient} from 'jsr:@supabase/supabase-js@2';
+
+// Provided by the Supabase Edge Runtime: keeps background work alive after the response.
+declare const EdgeRuntime: {waitUntil(promise: Promise<unknown>): void};
 
 const identificationSchema = {
   type: 'object',
@@ -97,29 +100,59 @@ Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', {headers: corsHeaders});
   if (request.method !== 'POST') return new Response('Method not allowed', {status: 405, headers: corsHeaders});
 
-  const authorization = request.headers.get('Authorization');
-  if (!authorization) return new Response('Unauthorized', {status: 401, headers: corsHeaders});
-
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const publishableKey = Deno.env.get('SUPABASE_ANON_KEY')!;
   const geminiKey = Deno.env.get('GEMINI_API_KEY');
   if (!geminiKey) return jsonResponse({error: 'GEMINI_API_KEY is not configured'}, 503);
+  const admin = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-  const client = createClient(supabaseUrl, publishableKey, {
-    global: {headers: {Authorization: authorization}},
-  });
-  const {data: {user}} = await client.auth.getUser();
-  if (!user) return new Response('Unauthorized', {status: 401, headers: corsHeaders});
+  // pg_cron calls with the worker secret and picks up whatever is ready
+  // (see supabase/migrations/20261021010000_server_side_ai_queue.sql).
+  // The app calls with the user's session to start one of its own records right away.
+  const workerSecret = Deno.env.get('ANALYZE_WORKER_SECRET');
+  let claim: {job_limit: number; only_id?: string};
+  if (workerSecret && request.headers.get('x-worker-secret') === workerSecret) {
+    claim = {job_limit: 3};
+  } else {
+    const authorization = request.headers.get('Authorization');
+    if (!authorization) return new Response('Unauthorized', {status: 401, headers: corsHeaders});
+    const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: {headers: {Authorization: authorization}},
+    });
+    const {data: {user}} = await userClient.auth.getUser();
+    if (!user) return new Response('Unauthorized', {status: 401, headers: corsHeaders});
+    const {recordId} = await request.json().catch(() => ({}));
+    // Row level security limits this lookup to the caller's own records.
+    const {data: owned} = await userClient.from('records').select('id').eq('id', recordId).maybeSingle();
+    if (!owned) return jsonResponse({error: 'Record not found'}, 404);
+    claim = {job_limit: 1, only_id: recordId};
+  }
 
-  const {recordId} = await request.json();
+  // Claiming marks the records processing in one statement, so a record is
+  // never analyzed twice at the same time.
+  const {data: claimed, error: claimError} = await admin.rpc('claim_ai_jobs', claim);
+  if (claimError) return jsonResponse({error: claimError.message}, 500);
+  const ids = (claimed || []).map((row: {id: string}) => row.id);
+  // Analysis takes tens of seconds; answer now and finish in the background so
+  // closing the app does not cut it short.
+  EdgeRuntime.waitUntil(Promise.all(ids.map((id: string) => analyzeRecord(admin, geminiKey, id))));
+  return jsonResponse({ok: true, queued: ids.length}, 202);
+});
+
+async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId: string) {
   const {data: record, error: recordError} = await client
     .from('records')
     .select('id,data,cover_path')
     .eq('id', recordId)
     .single();
-  if (recordError || !record?.cover_path) return jsonResponse({error: 'Record or cover not found'}, 404);
+  if (recordError || !record?.cover_path) {
+    await client.from('records').update({
+      ai_status: 'error',
+      ai_error: 'Record or cover not found',
+      updated_at: new Date().toISOString(),
+    }).eq('id', recordId);
+    return;
+  }
 
-  await client.from('records').update({ai_status: 'processing', ai_error: null}).eq('id', recordId);
   try {
     const {data: file, error: fileError} = await client.storage
       .from('record-covers')
@@ -215,7 +248,7 @@ Deno.serve(async (request) => {
       )
       .slice(0, 8);
 
-    const retrievedUrls = new Set(retrievedUrlMetadata.map((source) => normalizeUrl(source.url)).filter(Boolean));
+    const retrievedUrls = new Set(retrievedUrlMetadata.map((source: {url: string}) => normalizeUrl(source.url)).filter(Boolean));
     const verifiedMarketEvidence = (Array.isArray(result.marketEvidence) ? result.marketEvidence : [])
       .filter((item: {sourceUrl?: string; sameRelease?: boolean; priceYen?: number}) =>
         Boolean(item.sameRelease)
@@ -308,13 +341,12 @@ Deno.serve(async (request) => {
       updated_at: new Date().toISOString(),
     }).eq('id', recordId);
     if (updateError) throw updateError;
-    return jsonResponse({ok: true, status: aiStatus});
   } catch (error) {
+    // pg_cron retries failed records a limited number of times.
     await client.from('records').update({
       ai_status: 'error',
-      ai_error: String(error?.message || error),
+      ai_error: String((error as Error)?.message || error),
       updated_at: new Date().toISOString(),
     }).eq('id', recordId);
-    return jsonResponse({error: String(error?.message || error)}, 500);
   }
-});
+}

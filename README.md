@@ -37,9 +37,17 @@ AIは画像の文字を読み取り、Google検索で同じリリースの曲目
 4. SupabaseのAuthenticationでメールとパスワードによるログインを有効にします。確認メールを使う場合は、公開アプリのURLを認証のリダイレクト先に許可します。
 5. SupabaseのEdge Functionsから `analyze-record` をデプロイします。ソースは [`supabase/functions/analyze-record/index.ts`](supabase/functions/analyze-record/index.ts) です。
 6. Google AI Studioで利用可能なGemini APIキーを用意し、Supabaseの **Edge Functions → Secrets** で名前を `GEMINI_API_KEY` として登録します。キーをGitHubや `cloud-config.js` に保存しないでください。
-7. GitHub Pagesで `main` ブランチのルートを公開元に設定し、アプリURLを開いてログインと同期を確認します。
+7. AI解析はサーバー側の順番待ちで実行します。ランダムな文字列を1つ用意し、Edge Function Secret `ANALYZE_WORKER_SECRET` として登録します。SQL Editorで次を実行し、Vaultに関数のURLと同じ文字列を保存します。
 
-Gemini APIの利用枠や速度制限はGoogle AI Studio側のアカウントとプロジェクトの条件に従います。Google Search GroundingはGemini 3系のFree TierではAPI利用できず、課金対象Tierで月5,000検索リクエストまでは無料、それを超えると1,000リクエストあたり14米ドルです。1回の解析で複数の検索が実行される場合があります。また、URL Contextで取得した商品ページの内容はGeminiの入力トークンとして計上されます。費用と利用状況をGoogle AI Studioで確認してください。解析に失敗したレコードは再試行待ちとして保持し、次回同期時に再試行します。
+   ```sql
+   select vault.create_secret('https://<project-ref>.supabase.co/functions/v1/analyze-record', 'analyze_worker_url');
+   select vault.create_secret('<ANALYZE_WORKER_SECRETと同じ文字列>', 'analyze_worker_secret');
+   ```
+
+   `analyze-record` は `supabase/config.toml` の設定によりゲートウェイのJWT確認を行わず、関数内でユーザーのログインまたは上記の文字列を確認します。
+8. GitHub Pagesで `main` ブランチのルートを公開元に設定し、アプリURLを開いてログインと同期を確認します。
+
+Gemini APIの利用枠や速度制限はGoogle AI Studio側のアカウントとプロジェクトの条件に従います。Google Search GroundingはGemini 3系のFree TierではAPI利用できず、課金対象Tierで月5,000検索リクエストまでは無料、それを超えると1,000リクエストあたり14米ドルです。1回の解析で複数の検索が実行される場合があります。また、URL Contextで取得した商品ページの内容はGeminiの入力トークンとして計上されます。費用と利用状況をGoogle AI Studioで確認してください。AI解析はサーバー側で実行されるため、写真のアップロード後にアプリを閉じても続きます。pg_cronが1分ごとに解析待ちのレコードを処理し、失敗したものは10分以上あけて最大3回まで自動で再試行します。
 
 ## iPhoneで使う
 
@@ -76,4 +84,5 @@ AI解析用のGemini APIキーはSupabase Edge Functionからのみ参照し、�
 - `cloud-sync.js`：ログイン、自動同期、写真アップロード、AI解析の呼び出し
 - `supabase/schema.sql`：テーブル、RLS、Storageの初期スキーマ
 - `supabase/functions/analyze-record/index.ts`：Gemini画像解析、Google検索照合、出典保存
+- `supabase/config.toml`：Edge Functionの設定（`analyze-record` のJWT確認を関数内で行う）
 - `supabase/migrations/`：スキーマ変更の履歴

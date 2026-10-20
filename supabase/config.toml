@@ -1,0 +1,7 @@
+project_id = "vinyl-archive"
+
+# analyze-record authenticates callers itself: a user session (RLS-checked) or
+# the pg_cron worker secret. The worker call carries no JWT, so the gateway
+# check must stay off.
+[functions.analyze-record]
+verify_jwt = false
