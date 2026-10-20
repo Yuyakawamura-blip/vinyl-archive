@@ -110,6 +110,18 @@
         .eq("id", record.id);
       if (error) throw error;
     }
+    if (existingRecord && record.syncStatus === "pending") {
+      const { error } = await client
+        .from("records")
+        .update({
+          data: cleanRecord(record),
+          ai_status: record.aiStatus || existingRecord.ai_status,
+          ai_error: record.aiError || null,
+          updated_at: record.updatedAt || new Date().toISOString(),
+        })
+        .eq("id", record.id);
+      if (error) throw error;
+    }
     record.coverPath = coverPath;
     record.syncStatus = "synced";
     record.aiRetryRequested = false;
@@ -222,13 +234,19 @@
         };
       }),
     );
+    // Keep local edits made while this download was in flight; the queued
+    // sync rerun pushes them.
+    const merged = hydrated.map((record) => {
+      const local = existingById.get(record.id);
+      return local?.syncStatus === "pending" ? local : record;
+    });
     const remoteIds = new Set(hydrated.map((record) => record.id));
     const localOnly = localRecords().filter(
       (record) =>
         !remoteIds.has(record.id) &&
         (record.syncStatus === "pending" || record.cover?.startsWith("data:image/")),
     );
-    window.vinylApp?.replaceRecords?.([...localOnly, ...hydrated]);
+    window.vinylApp?.replaceRecords?.([...localOnly, ...merged]);
   }
 
   function subscribeToRecords(userId) {
@@ -307,14 +325,17 @@
       const analyses = [];
       for (const record of items) {
         const existingRecord = remoteById.get(record.id) || null;
+        const edited = Boolean(existingRecord) && record.syncStatus === "pending";
         if (
           existingRecord &&
+          !edited &&
           !record.aiRetryRequested &&
           !["pending", "error"].includes(existingRecord.ai_status)
         )
           continue;
         try {
-          const shouldAnalyze = Boolean(
+          // A manual edit must not trigger an AI pass that would overwrite it.
+          const shouldAnalyze = !edited && Boolean(
             record.aiRetryRequested ||
               (!existingRecord && ["pending", "error"].includes(record.aiStatus || "pending")) ||
               (existingRecord && ["pending", "error"].includes(existingRecord.ai_status)),

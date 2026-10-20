@@ -355,11 +355,88 @@ function aiSourceList(sources = []) {
     .join("");
   return links ? `<div class="ai-sources"><span>AI調査の出典</span><ul>${links}</ul></div>` : "";
 }
-function showDetail(id) {
+const genreOptions = ["Jazz", "Rock", "Soul", "Electronic", "Hip-Hop", "Classical", "Pop", "Other"];
+function detailEditor(r) {
+  const genres = genreOptions.includes(r.genre) || !r.genre ? genreOptions : [...genreOptions, r.genre];
+  return `<form class="detail-edit" id="detailEditForm" novalidate>
+    <div class="fields">
+      <label>アーティスト名<input name="artist" required value="${esc(r.artist)}"></label>
+      <label>タイトル<input name="title" required value="${esc(r.title)}"></label>
+      <label class="side-field side-a">A面 曲名<input name="aTitle" value="${esc(r.aTitle)}"></label>
+      <label class="side-field side-b">B面 曲名<input name="bTitle" value="${esc(r.bTitle)}"></label>
+      <label>発売年<input name="year" type="number" min="1900" max="2099" value="${Number(r.year) > 0 ? Number(r.year) : ""}"></label>
+      <label>ジャンル<select name="genre">${genres.map((g) => `<option${g === (r.genre || "Other") ? " selected" : ""}>${esc(g)}</option>`).join("")}</select></label>
+      <label>市場価格（円）<input name="marketPrice" type="number" min="0" step="100" value="${Number(r.marketPrice) > 0 ? Number(r.marketPrice) : ""}"></label>
+    </div>
+    <label>メモ<textarea name="notes" rows="3">${esc(r.notes)}</textarea></label>
+    <p class="detail-edit-error" role="alert"></p>
+    <div class="dialog-actions"><button type="button" class="secondary" id="cancelEdit">キャンセル</button><button class="add-btn" type="submit">保存</button></div>
+  </form>`;
+}
+function saveRecordEdit(r, form) {
+  const d = Object.fromEntries(new FormData(form)),
+    artist = d.artist.trim(),
+    title = d.title.trim(),
+    bTitle = d.bTitle.trim(),
+    price = d.marketPrice === "" ? null : Number(d.marketPrice),
+    currentPrice = Number(r.marketPrice) > 0 ? Number(r.marketPrice) : null;
+  if (!artist || !title) {
+    form.querySelector(".detail-edit-error").textContent = "アーティスト名とタイトルを入力してください";
+    return;
+  }
+  // A B-side typed by the user counts as confirmed; an unchanged one keeps its AI verification state.
+  if (bTitle !== (r.bTitle || "")) r.bTitleVerified = Boolean(bTitle);
+  if (price !== currentPrice) {
+    r.marketPrice = price;
+    r.marketPriceNotes = price === null ? "" : "手入力の市場価格です。";
+    r.marketPriceChecked = price === null ? "" : tokyoToday();
+    r.marketPriceConfidence = null;
+  }
+  Object.assign(r, {
+    artist,
+    title,
+    bTitle,
+    aTitle: d.aTitle.trim(),
+    year: Number(d.year) || 0,
+    genre: d.genre,
+    notes: d.notes.trim(),
+  });
+  // Saving an edit means the user has reviewed the record, so clear AI review states.
+  if (["review", "no_resources", "error"].includes(r.aiStatus)) {
+    r.aiStatus = "complete";
+    r.aiError = null;
+    r.aiNeedsReview = false;
+  }
+  r.updatedAt = new Date().toISOString();
+  r.syncStatus = "pending";
+  save();
+  showDetail(r.id);
+  toast("変更を保存しました");
+}
+function showDetail(id, editing = false) {
   const r = records.find((x) => x.id === id);
+  if (!r) return;
+  const aiBusy = ["pending", "processing"].includes(r.aiStatus);
+  const editButton = editing
+    ? ""
+    : `<button type="button" class="secondary edit-btn" id="editRecord"${aiBusy ? ' disabled title="AI解析が終わると編集できます"' : ""}>編集</button>`;
+  const body = editing
+    ? `<div><p class="eyebrow">EDIT RECORD</p>${detailEditor(r)}</div>`
+    : `<div><p>${r.genre} · ${r.year || "年代不明"}</p><h2>${esc(r.title)}</h2><h3>${esc(r.artist)}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "次回同期時に再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET</span><b>${marketPriceLabel(r)}</b></div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${r.aiNotes ? `<div class="market-research"><span>AI解析メモ</span><p>${esc(r.aiNotes)}</p></div>` : ""}${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" onclick="retryCloudAnalysis('${esc(r.id)}')">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button class="delete-btn" onclick="removeRecord('${esc(r.id)}')">このレコードを削除</button></div>`;
   $("#detailContent").innerHTML =
-    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><button class="close" onclick="detailDialog.close()">×</button></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}"><div><p>${r.genre} · ${r.year || "年代不明"}</p><h2>${esc(r.title)}</h2><h3>${esc(r.artist)}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "次回同期時に再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET</span><b>${marketPriceLabel(r)}</b></div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${r.aiNotes ? `<div class="market-research"><span>AI解析メモ</span><p>${esc(r.aiNotes)}</p></div>` : ""}${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" onclick="retryCloudAnalysis('${esc(r.id)}')">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button class="delete-btn" onclick="removeRecord('${esc(r.id)}')">このレコードを削除</button></div></div>`;
-  $("#detailDialog").showModal();
+    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><div class="detail-head-actions">${editButton}<button class="close" onclick="detailDialog.close()">×</button></div></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}">${body}</div>`;
+  if (editing) {
+    const form = $("#detailEditForm");
+    form.onsubmit = (event) => {
+      event.preventDefault();
+      saveRecordEdit(r, form);
+    };
+    $("#cancelEdit").onclick = () => showDetail(id);
+    form.querySelector("input").focus();
+  } else if (!aiBusy) {
+    $("#editRecord").onclick = () => showDetail(id, true);
+  }
+  if (!$("#detailDialog").open) $("#detailDialog").showModal();
 }
 window.removeRecord = (id) => {
   if (confirm("このレコードをコレクションから削除しますか？")) {
