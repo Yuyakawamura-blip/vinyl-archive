@@ -254,10 +254,10 @@ Deno.serve(async (request) => {
       title: result.title || data.title,
       year: Number(result.year) || Number(data.year) || 0,
       genre: result.genre || 'Other',
-      catalogNo: result.catalogNo || '',
-      aTitle: result.aTitle || '',
-      bTitle: result.bTitle || '',
-      bTitleVerified: Boolean(result.bTitleVerified),
+      catalogNo: result.catalogNo || data.catalogNo || '',
+      aTitle: result.aTitle || data.aTitle || '',
+      bTitle: result.bTitle || data.bTitle || '',
+      bTitleVerified: result.bTitle ? Boolean(result.bTitleVerified) : Boolean(data.bTitleVerified),
       marketPrice,
       marketPriceConfidence: hasGroundedPrice
         ? Math.min(1, Math.max(0, Number(result.marketPriceConfidence) || 0))
