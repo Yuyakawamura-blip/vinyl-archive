@@ -1,70 +1,7 @@
 const KEY = "vinyl-archive-records-v1";
-const demo = [
-  {
-    id: "demo-1",
-    artist: "Miles Davis",
-    title: "Kind of Blue",
-    year: 1959,
-    genre: "Jazz",
-    condition: "Very Good+",
-    marketPrice: 6800,
-    purchasePrice: 4200,
-    catalogNo: "CBS/Sony 25AP 755",
-    notes: "日本盤。帯なし。",
-    cover:
-      "https://upload.wikimedia.org/wikipedia/en/9/9c/MilesDavisKindofBlue.jpg",
-    added: "2026-10-10",
-    trend: 8,
-  },
-  {
-    id: "demo-2",
-    artist: "YMO",
-    title: "Solid State Survivor",
-    year: 1979,
-    genre: "Electronic",
-    condition: "Near Mint",
-    marketPrice: 5400,
-    purchasePrice: 3500,
-    catalogNo: "ALR-6022",
-    notes: "イエロー・ヴィニール。",
-    cover:
-      "https://upload.wikimedia.org/wikipedia/en/8/8b/Solid_State_Survivor.jpg",
-    added: "2026-10-09",
-    trend: 4,
-  },
-  {
-    id: "demo-3",
-    artist: "Stevie Wonder",
-    title: "Songs in the Key of Life",
-    year: 1976,
-    genre: "Soul",
-    condition: "Very Good",
-    marketPrice: 4200,
-    purchasePrice: 2800,
-    catalogNo: "T13-340C2",
-    notes: "2LP。7インチEP付き。",
-    cover:
-      "https://upload.wikimedia.org/wikipedia/en/e/e2/Songs_in_the_key_of_life.jpg",
-    added: "2026-10-08",
-    trend: -2,
-  },
-  {
-    id: "demo-4",
-    artist: "The Clash",
-    title: "London Calling",
-    year: 1979,
-    genre: "Rock",
-    condition: "Very Good+",
-    marketPrice: 7600,
-    purchasePrice: 5100,
-    catalogNo: "25·3P-139~140",
-    notes: "日本盤。",
-    cover:
-      "https://upload.wikimedia.org/wikipedia/en/0/00/TheClashLondonCallingalbumcover.jpg",
-    added: "2026-10-07",
-    trend: 11,
-  },
-];
+// Earlier versions seeded four sample records with these ids; drop them on load.
+const withoutSamples = (list) =>
+  (list || []).filter((record) => !String(record.id).startsWith("demo-"));
 let records = [];
 let filter = "All";
 let listSortDirection = "desc";
@@ -140,11 +77,11 @@ async function initApp() {
   try {
     db = await openDatabase();
     const stored = await readDatabase();
-    records = stored || JSON.parse(localStorage.getItem(KEY) || "null") || demo;
+    records = withoutSamples(stored || JSON.parse(localStorage.getItem(KEY) || "null"));
     writeDatabase();
     localStorage.removeItem(KEY);
   } catch (error) {
-    records = JSON.parse(localStorage.getItem(KEY) || "null") || demo;
+    records = withoutSamples(JSON.parse(localStorage.getItem(KEY) || "null"));
     toast("データベースを開けないため一時保存で起動しました");
   }
   // Restore filters from the URL before the first render writes them back.
@@ -882,7 +819,7 @@ window.vinylApp = {
       });
     }
     databaseCollectionKey = nextKey;
-    records = (await readDatabase()) || [];
+    records = withoutSamples(await readDatabase());
     render();
   },
   replaceRecords: (next) => {

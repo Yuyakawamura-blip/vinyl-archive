@@ -26,9 +26,7 @@
     button.title = label;
   }
   function localRecords() {
-    return (window.vinylApp?.getRecords?.() || []).filter(
-      (record) => !String(record.id).startsWith("demo-"),
-    );
+    return window.vinylApp?.getRecords?.() || [];
   }
   function dataUrlToBlob(dataUrl) {
     const [meta, data] = dataUrl.split(","),
