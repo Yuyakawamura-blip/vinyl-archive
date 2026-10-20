@@ -29,7 +29,7 @@
     <link rel="stylesheet" href="tracks.css?v=9" />
     <link rel="stylesheet" href="news.css?v=7" />
     <link rel="stylesheet" href="batch.css?v=10" />
-    <link rel="stylesheet" href="sync.css?v=13" />
+    <link rel="stylesheet" href="sync.css?v=14" />
     <link rel="manifest" href="manifest.webmanifest" />
   </head>
   <body>
@@ -57,6 +57,11 @@
         ><button class="add-btn" id="openAdd">＋ 撮影・一括追加</button>
       </div>
     </header>
+    <div class="sync-hint" id="syncHint" role="region" aria-label="同期のご案内" hidden>
+      <p>ログインすると、iPhoneとパソコンで同じコレクションを使えます。</p>
+      <button type="button" class="add-btn" id="syncHintLogin">ログイン</button>
+      <button type="button" class="close" id="syncHintClose" aria-label="案内を閉じる">×</button>
+    </div>
 
     <main>
       <section class="hero web-news" id="newsSection">
@@ -292,12 +297,13 @@
     </dialog>
 
     <dialog id="detailDialog"><div id="detailContent"></div></dialog>
-    <dialog id="syncDialog" class="sync-dialog" closedby="none">
+    <dialog id="syncDialog" class="sync-dialog">
       <div class="sync-dialog-inner">
+        <button type="button" class="close sync-close" id="syncClose" aria-label="閉じる">×</button>
         <p class="eyebrow">AUTOMATIC CLOUD SYNC</p>
         <h2>すべての端末で、同じ棚を。</h2>
         <p>
-          コレクションは自動同期されます。iPhoneにある既存の写真も、ログイン後に自動アップロードされます。
+          ログインすると、コレクションが自動で同期されます。この端末に保存済みのレコードと写真も、ログイン後にアップロードされます。
         </p>
         <div
           class="auth-mode-switch"
@@ -352,10 +358,10 @@
           メールアドレスとパスワードでログインしてください。
         </p>
         <button class="local-continue" id="continueLocal" type="button">
-          ログインせず、端末内だけで続ける
+          ログインせずに使う
         </button>
         <small class="local-only-note" id="localOnlyNote">
-          端末内だけに保存され、ほかの端末には同期されません。後からログインできます。
+          ログインしない場合、レコードはこの端末だけに保存されます。後から右上のボタンでいつでもログインできます。
         </small>
         <div class="account-panel" id="accountPanel" hidden>
           <p>ログイン中のアカウント</p>
@@ -374,7 +380,7 @@
     <div class="toast" id="toast"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"></script>
     <script src="cloud-config.js?v=10"></script>
-    <script src="cloud-sync.js?v=23"></script>
+    <script src="cloud-sync.js?v=24"></script>
     <script src="app.js?v=25"></script>
   </body>
 </html>

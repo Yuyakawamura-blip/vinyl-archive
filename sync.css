@@ -221,3 +221,39 @@
   padding: 10px 12px;
   overflow-wrap: anywhere;
 }
+.sync-dialog-inner {
+  position: relative;
+}
+.sync-close {
+  position: absolute;
+  right: 18px;
+  top: 14px;
+}
+.sync-hint {
+  align-items: center;
+  background: var(--cream);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 14px;
+  padding: 10px 4vw;
+}
+.sync-hint p {
+  flex: 1;
+  font-size: 12px;
+  margin: 0;
+}
+.sync-hint .add-btn {
+  padding: 9px 14px;
+}
+.sync-hint .close {
+  font-size: 22px;
+  line-height: 1;
+}
+.sync-hint[hidden] {
+  display: none;
+}
+@media (max-width: 560px) {
+  .sync-hint {
+    padding: 10px 18px;
+  }
+}

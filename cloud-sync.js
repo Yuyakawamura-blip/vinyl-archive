@@ -16,6 +16,7 @@
   const lastCloudUserKey = "vinyl-archive-last-cloud-user";
   const pendingDeleteKey = "vinyl-archive-pending-deletes";
   const localModeKey = "vinyl-archive-local-mode";
+  const syncHintDismissedKey = "vinyl-archive-sync-hint-dismissed";
   const $ = (selector) => document.querySelector(selector);
 
   function updateStatus(state, label) {
@@ -397,15 +398,28 @@
     }
   }
 
-  function showRequiredLogin(force = false) {
+  // Signed out, the app keeps working on this device only; login is offered,
+  // never forced. The local-mode flag keeps the existing rule for carrying this
+  // device's records into the account on the next login.
+  function enterLocalMode() {
+    localStorage.setItem(localModeKey, "true");
+    updateStatus("local", "ログインして同期");
+    updateSyncHint();
+  }
+  function openLogin() {
     const dialog = $("#syncDialog");
-    if (!force && localStorage.getItem(localModeKey) === "true") {
-      updateStatus("local", "端末内のみ");
-      return;
-    }
     setAuthMode("login");
     if (dialog && !dialog.open) dialog.showModal();
-    updateStatus("required", "ログインが必要");
+  }
+  // Suggest syncing once the device holds records, until the user dismisses it.
+  function updateSyncHint() {
+    const hint = $("#syncHint");
+    if (!hint) return;
+    hint.hidden =
+      !configured ||
+      Boolean(currentUser) ||
+      localStorage.getItem(syncHintDismissedKey) === "true" ||
+      !localRecords().length;
   }
   function setAuthMode(mode) {
     authMode = mode;
@@ -556,6 +570,7 @@
           subscribeToRecords(nextUser.id);
           $("#accountStatus").hidden = false;
           $("#syncDialog")?.close();
+          updateSyncHint();
           await syncAll();
           return;
         }
@@ -572,10 +587,10 @@
         }
         activeUserId = null;
         $("#accountStatus").hidden = true;
-        showRequiredLogin();
+        enterLocalMode();
       }).catch((error) => {
         console.error("Could not switch the active cloud account", error);
-        showRequiredLogin();
+        enterLocalMode();
       });
     });
     const { data } = await client.auth.getSession();
@@ -583,7 +598,7 @@
       const session = data.session;
       const nextUser = session?.user || null;
       if (!nextUser) {
-        if (!activeUserId) showRequiredLogin();
+        if (!activeUserId) enterLocalMode();
         return;
       }
       if (activeUserId === nextUser.id) return;
@@ -600,29 +615,25 @@
       currentUser = nextUser;
       subscribeToRecords(nextUser.id);
       $("#accountStatus").hidden = false;
+      updateSyncHint();
       await syncAll();
     }).catch((error) => {
       console.error("Could not initialize the active cloud account", error);
-      showRequiredLogin();
+      enterLocalMode();
     });
     await authTransition;
   }
 
   window.queueCloudSync = () => {
     if (configured && currentUser) syncAll();
-    else if (configured) showRequiredLogin();
+    else updateSyncHint();
   };
-  $("#continueLocal")?.addEventListener("click", async () => {
-    try {
-      localStorage.setItem(localModeKey, "true");
-      $("#syncDialog")?.close();
-      updateStatus("local", "端末内のみ");
-      window.vinylApp?.notify?.("端末内モードで続けます。同期は行われません");
-    } catch (error) {
-      window.vinylApp?.notify?.(
-        `端末内モードに切り替えられませんでした: ${error?.message || "保存エラー"}`,
-      );
-    }
+  $("#continueLocal")?.addEventListener("click", () => $("#syncDialog")?.close());
+  $("#syncClose")?.addEventListener("click", () => $("#syncDialog")?.close());
+  $("#syncHintLogin")?.addEventListener("click", openLogin);
+  $("#syncHintClose")?.addEventListener("click", () => {
+    localStorage.setItem(syncHintDismissedKey, "true");
+    updateSyncHint();
   });
   window.retryCloudAnalysis = (recordId) => {
     const record = localRecords().find((item) => item.id === recordId);
@@ -652,9 +663,6 @@
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") window.queueCloudSync();
   });
-  $("#syncDialog")?.addEventListener("cancel", (event) =>
-    event.preventDefault(),
-  );
   $("#authLoginMode")?.addEventListener("click", () => setAuthMode("login"));
   $("#authSignupMode")?.addEventListener("click", () => setAuthMode("signup"));
   $("#syncAuthReset")?.addEventListener("click", () => setAuthMode("reset"));
@@ -690,6 +698,6 @@
     if (!configured)
       return window.vinylApp?.notify?.("クラウド同期の接続設定中です");
     if (currentUser) syncAll();
-    else showRequiredLogin(true);
+    else openLogin();
   });
 })();
