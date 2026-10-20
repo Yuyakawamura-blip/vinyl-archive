@@ -69,25 +69,6 @@
   font-size: 13px;
   line-height: 1.8;
 }
-.auth-mode-switch {
-  border-bottom: 1px solid var(--line);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  margin-top: 20px;
-}
-.auth-mode-switch button {
-  background: transparent;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font: 500 12px "DM Mono";
-  padding: 12px;
-}
-.auth-mode-switch button.active {
-  border-color: var(--orange);
-  color: var(--ink);
-}
 .sync-dialog-inner form {
   display: grid;
   gap: 14px;
