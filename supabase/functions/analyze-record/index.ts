@@ -36,6 +36,8 @@ const researchSchema = {
     marketPriceFound: {type: 'boolean'},
     marketPriceConfidence: {type: 'number'},
     marketPriceNotes: {type: 'string'},
+    estimatedPrice: {type: 'integer'},
+    estimateNotes: {type: 'string'},
     marketEvidence: {
       type: 'array',
       items: {
@@ -57,6 +59,7 @@ const researchSchema = {
     'artist', 'title', 'year', 'genre', 'catalogNo', 'aTitle', 'bTitle',
     'bTitleVerified', 'confidence', 'needsReview', 'notes', 'marketPrice',
     'marketPriceFound', 'marketPriceConfidence', 'marketPriceNotes',
+    'estimatedPrice', 'estimateNotes',
     'marketEvidence',
   ],
 };
@@ -172,9 +175,10 @@ Deno.serve(async (request) => {
 3. 市場価格は検索スニペットだけで決めず、Google検索で候補を探した後、URL Contextで同一盤候補の商品詳細ページを開いて確認してください。特にYahoo!オークションでは各詳細ページの商品説明を読み、アーティスト、タイトル、レーベル、型番、国内盤/輸入盤、7インチ等のフォーマットを照合してください。おすすめ欄や「似た商品」の価格は、その商品の詳細ページを開いて同一リリースと確認できた場合以外は比較対象に含めないでください。
 4. 各候補の出品/終了状態、終了日時、入札数、落札価格、送料、説明文にある型番やフォーマットを確認してください。開催中オークションの現在価格は落札価格ではありません。開催中オークションの現在入札額、終了して入札がない商品、別盤/LP/輸入盤は落札実績のように扱わず除外してください。状態の良し悪しは価格算出条件にしないでください。重複出品や再出品も一件にまとめてください。
 5. まず日本国内の終了済み落札実績を調べ、同一リリースと判断できる実物の商品詳細ページを複数件照合してください。少なくとも2件の同一盤候補を直接取得できた場合のみ比較対象としてmarketEvidenceに入れ、実際に落札済みの商品を優先します。落札実績が2件に満たない場合は、同一盤と確認できた固定価格販売ページを補助的に使えますが、通常の開催中オークションの現在額は使いません。正確な市場価格根拠が2件以上確認できなければ marketPriceFound=false、marketPrice=0 としてください。
+5b. 上記とは別に、estimatedPrice には参考となる概算価格を円で返してください。同一盤の根拠が不足する場合は、同じアーティストの同時期・同フォーマットの中古盤や国内中古レコード店の価格を参考に、控えめな一つの円額を推定してください。estimateNotes には概算の根拠を短く書いてください。概算の手がかりが全くない場合のみ estimatedPrice=0 とします。estimatedPrice は marketPrice とは別扱いで、確認済みの相場として扱われることはありません。
 6. marketEvidenceにはURL Contextで取得成功した直接の商品ページだけを入れてください。各件について商品URL、商品名、同一盤か、saleStatus（sold / active_auction / active_fixed_price / ended_unsold / unknown）、商品価格（円）、送料（不明なら-1）、終了日を記録します。価格は送料と分けた商品価格を返してください。市場価格は、同一盤の落札済み価格を優先してその中央値から一つだけ算出し、落札実績が不足する場合は同一盤の固定価格販売例だけで算出してください。比較元ごとの価格一覧はユーザー表示用の文章に含めないでください。
 7. 市場価格は単一の円額として返し、比較元ごとの金額や成約価格/出品価格の内訳、価格帯を別途返さないでください。marketPriceNotes は商品ページの説明文と販売状況を照合したこと、または根拠不足の理由のみ短く記載し、個別金額・販売カテゴリの内訳・価格帯は記載しないでください。marketPriceConfidence は根拠の強さを0から1で表してください。
-8. 正確なB面が資料で確認できた場合だけ bTitleVerified=true としてください。照合に自信がなければ needsReview=true にしてください。根拠がない年、カタログ番号、曲名、価格は作らないでください。出力は指定JSON形式のみです。`;
+8. 正確なB面が資料で確認できた場合だけ bTitleVerified=true としてください。照合に自信がなければ needsReview=true にしてください。根拠がない年、カタログ番号、曲名、価格は作らないでください（estimatedPrice の概算を除く）。出力は指定JSON形式のみです。`;
     const researched = await callGemini({
       contents: [{parts: [{text: researchPrompt}]}],
       tools: [{google_search: {}}, {url_context: {}}],
@@ -233,18 +237,33 @@ Deno.serve(async (request) => {
       && evidenceMarketPrice !== null
       && String(result.marketPriceNotes || '').trim().length > 0
       && aiSources.length > 0;
+    // Price priority: fresh evidence > existing evidence/manual/legacy price > new estimate.
+    // A previous estimate is refreshed by a new one.
     const existingMarketPrice = Number(data.marketPrice);
+    const estimatedPrice = Math.round(Number(result.estimatedPrice) || 0);
+    // Records priced by hand before marketPriceBasis existed only carry this note.
+    const existingBasis = data.marketPriceBasis
+      || (data.marketPriceNotes === '手入力の市場価格です。' ? 'manual' : '');
     const preserveExistingPrice = !hasGroundedPrice
       && Number.isFinite(existingMarketPrice)
-      && existingMarketPrice > 0;
+      && existingMarketPrice > 0
+      && !(existingBasis === 'estimate' && estimatedPrice > 0);
+    const useEstimate = !hasGroundedPrice && !preserveExistingPrice && estimatedPrice > 0;
     const marketPrice = hasGroundedPrice
       ? evidenceMarketPrice
-      : preserveExistingPrice ? existingMarketPrice : null;
+      : preserveExistingPrice ? existingMarketPrice : useEstimate ? estimatedPrice : null;
+    const marketPriceBasis = hasGroundedPrice
+      ? 'evidence'
+      : preserveExistingPrice ? existingBasis : useEstimate ? 'estimate' : '';
     const marketPriceNotes = hasGroundedPrice
       ? String(result.marketPriceNotes).trim()
       : preserveExistingPrice
-        ? '今回の商品ページ調査では十分な根拠を確認できなかったため、前回の市場価格を保持しています。'
-        : '一致する盤の商品ページを複数確認できず、市場価格の根拠が不足しています。';
+        ? existingBasis === 'manual'
+          ? '手入力の市場価格です。'
+          : '今回の商品ページ調査では十分な根拠を確認できなかったため、前回の市場価格を保持しています。'
+        : useEstimate
+          ? `同一盤の相場を複数確認できなかったための概算です。${String(result.estimateNotes || '').trim()}`
+          : '一致する盤の商品ページを複数確認できず、市場価格の根拠が不足しています。';
 
     const hasUsefulResult = [result.artist, result.title, result.catalogNo, result.aTitle, result.bTitle]
       .some((value) => String(value || '').trim()) || Number(result.year) > 0;
@@ -259,6 +278,7 @@ Deno.serve(async (request) => {
       bTitle: result.bTitle || data.bTitle || '',
       bTitleVerified: result.bTitle ? Boolean(result.bTitleVerified) : Boolean(data.bTitleVerified),
       marketPrice,
+      marketPriceBasis,
       marketPriceConfidence: hasGroundedPrice
         ? Math.min(1, Math.max(0, Number(result.marketPriceConfidence) || 0))
         : null,
