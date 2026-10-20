@@ -47,6 +47,21 @@
     delete copy.coverUrlExpiresAt;
     return copy;
   }
+  // Must match COVER_CACHE in sw.js.
+  const coverCacheName = "vinyl-archive-covers";
+  function forgetCachedCovers(paths) {
+    if (!window.caches || !paths.length) return;
+    caches
+      .open(coverCacheName)
+      .then((cache) =>
+        Promise.all(
+          paths.map((path) =>
+            cache.delete(`${config.url}/storage/v1/object/sign/record-covers/${path}`),
+          ),
+        ),
+      )
+      .catch(() => {});
+  }
   function pendingDeletes() {
     try {
       return JSON.parse(localStorage.getItem(pendingDeleteKey) || "[]");
@@ -190,6 +205,7 @@
     if (error) throw error;
     const paths = pending.map((item) => item.coverPath).filter(Boolean);
     if (paths.length) await client.storage.from("record-covers").remove(paths);
+    forgetCachedCovers(paths);
     setPendingDeletes([]);
   }
 
@@ -551,8 +567,11 @@
           recordsChannel = null;
         }
         clearTimeout(pullTimer);
-        if (activeUserId)
+        if (activeUserId) {
+          // Don't leave the previous account's photos on a shared device.
+          await window.caches?.delete(coverCacheName).catch(() => {});
           await window.vinylApp?.selectCloudCollection?.(null, false);
+        }
         activeUserId = null;
         $("#accountStatus").hidden = true;
         showRequiredLogin();
