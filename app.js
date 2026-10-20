@@ -68,6 +68,8 @@ const demo = [
 let records = [];
 let filter = "All";
 let listSortDirection = "desc";
+let listArtist = "All";
+let listGenre = "All";
 let coverData = "";
 let cameraStream = null;
 let cameraMode = "manual";
@@ -145,7 +147,8 @@ async function initApp() {
     records = JSON.parse(localStorage.getItem(KEY) || "null") || demo;
     toast("データベースを開けないため一時保存で起動しました");
   }
-  render();
+  // Restore filters from the URL before the first render writes them back.
+  applyRoute();
   if ("serviceWorker" in navigator)
     navigator.serviceWorker.register("./sw.js").catch(() => {});
 }
@@ -181,22 +184,23 @@ function render() {
     sort = $("#sortSelect").value;
   const artistSelect = $("#listArtistFilter"),
     genreSelect = $("#listGenreFilter"),
-    selectedArtist = artistSelect.value || "All",
-    selectedGenre = genreSelect.value || "All",
-    artists = [...new Set(records.map((r) => r.artist).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ja")),
-    listGenres = [...new Set(records.map((r) => r.genre).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ja"));
+    // Keep a filter from the URL selectable even before matching records have synced.
+    withSelected = (values, selected) =>
+      selected === "All" || values.includes(selected) ? values : [selected, ...values],
+    artists = withSelected([...new Set(records.map((r) => r.artist).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ja")), listArtist),
+    listGenres = withSelected([...new Set(records.map((r) => r.genre).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ja")), listGenre);
   artistSelect.innerHTML = `<option value="All">すべて</option>${artists.map((artist) => `<option value="${esc(artist)}">${esc(artist)}</option>`).join("")}`;
   genreSelect.innerHTML = `<option value="All">すべて</option>${listGenres.map((genre) => `<option value="${esc(genre)}">${esc(genre)}</option>`).join("")}`;
-  artistSelect.value = artists.includes(selectedArtist) ? selectedArtist : "All";
-  genreSelect.value = listGenres.includes(selectedGenre) ? selectedGenre : "All";
+  artistSelect.value = listArtist;
+  genreSelect.value = listGenre;
   const listMode = viewMode === "list";
   $("#listControls").classList.toggle("hidden", !listMode);
   $("#listSortDirection").textContent = listSortDirection === "desc" ? "降順 ↓" : "昇順 ↑";
   let shown = records.filter(
     (r) =>
       (filter === "All" || r.genre === filter) &&
-      (!listMode || (artistSelect.value === "All" || r.artist === artistSelect.value)) &&
-      (!listMode || (genreSelect.value === "All" || r.genre === genreSelect.value)) &&
+      (!listMode || listArtist === "All" || r.artist === listArtist) &&
+      (!listMode || listGenre === "All" || r.genre === listGenre) &&
       [r.artist, r.title, r.year, r.genre].join(" ").toLowerCase().includes(q),
   );
   const compare = (a, b) => {
@@ -222,7 +226,7 @@ function render() {
   $("#listViewBtn").classList.toggle("active", viewMode === "list");
   $("#emptyState").classList.toggle("hidden", records.length > 0);
   $("#recordGrid").classList.toggle("hidden", records.length === 0);
-  document.querySelectorAll(".card").forEach((c) => (c.onclick = () => showDetail(c.dataset.id)));
+  document.querySelectorAll(".card").forEach((c) => (c.onclick = () => navigate(`record/${c.dataset.id}`)));
   document.querySelectorAll(".record-table [data-sort]").forEach((button) => {
     button.onclick = () => {
       const nextSort = button.dataset.sort;
@@ -235,15 +239,16 @@ function render() {
     };
   });
   document.querySelectorAll(".record-table tbody tr").forEach((row) => {
-    row.onclick = () => showDetail(row.dataset.id);
+    row.onclick = () => navigate(`record/${row.dataset.id}`);
     row.onkeydown = (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        showDetail(row.dataset.id);
+        navigate(`record/${row.dataset.id}`);
       }
     };
   });
   renderNews();
+  syncRouteQuery();
 }
 function isStandalone() {
   return (
@@ -422,7 +427,7 @@ function saveRecordEdit(r, form) {
   r.updatedAt = new Date().toISOString();
   r.syncStatus = "pending";
   save();
-  showDetail(r.id);
+  leaveRoute(`record/${r.id}`);
   toast("変更を保存しました");
 }
 function showDetail(id, editing = false) {
@@ -443,10 +448,10 @@ function showDetail(id, editing = false) {
       event.preventDefault();
       saveRecordEdit(r, form);
     };
-    $("#cancelEdit").onclick = () => showDetail(id);
+    $("#cancelEdit").onclick = () => leaveRoute(`record/${id}`);
     form.querySelector("input").focus();
   } else if (!aiBusy) {
-    $("#editRecord").onclick = () => showDetail(id, true);
+    $("#editRecord").onclick = () => navigate(`record/${id}/edit`);
   }
   if (!$("#detailDialog").open) $("#detailDialog").showModal();
 }
@@ -650,11 +655,12 @@ function saveBatch() {
   addDialog.close();
   toast(`${created.length}枚を保存しました。自動同期を開始します`);
 }
-$("#openAdd").onclick = $("#emptyAdd").onclick = () => {
+function openAddDialog() {
   renderCaptureQueue();
   captureMessage("");
   addDialog.showModal();
-};
+}
+$("#openAdd").onclick = $("#emptyAdd").onclick = () => navigate("add");
 $("#closeDialog").onclick = $("#cancelDialog").onclick = () => {
   stopCamera();
   addDialog.close();
@@ -740,15 +746,21 @@ $("#gridViewBtn").onclick = () => setViewMode("grid");
 $("#listViewBtn").onclick = () => setViewMode("list");
 $("#searchInput").oninput = render;
 $("#sortSelect").onchange = render;
-$("#listArtistFilter").onchange = render;
-$("#listGenreFilter").onchange = render;
+$("#listArtistFilter").onchange = (e) => {
+  listArtist = e.target.value;
+  render();
+};
+$("#listGenreFilter").onchange = (e) => {
+  listGenre = e.target.value;
+  render();
+};
 $("#listSortDirection").onclick = () => {
   listSortDirection = listSortDirection === "desc" ? "asc" : "desc";
   render();
 };
 $("#clearListFilters").onclick = () => {
-  $("#listArtistFilter").value = "All";
-  $("#listGenreFilter").value = "All";
+  listArtist = "All";
+  listGenre = "All";
   $("#searchInput").value = "";
   filter = "All";
   render();
@@ -764,6 +776,93 @@ $("#exportBtn").onclick = () => {
   URL.revokeObjectURL(a.href);
   toast("バックアップを書き出しました");
 };
+// URL routing. Routes live in the hash so they work on GitHub Pages:
+//   #/?q=..&genre=..&sort=..&view=list&dir=asc&artist=..&lgenre=..
+//   #/record/<id>   #/record/<id>/edit   #/add
+// Supabase auth redirects also use the hash (#access_token=...), so only
+// hashes starting with "#/" are treated as routes.
+const sortValues = [...$("#sortSelect").options].map((option) => option.value);
+function parseRoute() {
+  const hash = location.hash;
+  if (hash && !hash.startsWith("#/")) return null;
+  const [path, query = ""] = hash.slice(2).split("?");
+  return { path: path.split("/").filter(Boolean), params: new URLSearchParams(query) };
+}
+function routeUrl(path) {
+  const params = new URLSearchParams(),
+    q = $("#searchInput").value.trim(),
+    sort = $("#sortSelect").value;
+  if (q) params.set("q", q);
+  if (filter !== "All") params.set("genre", filter);
+  if (sort !== "added") params.set("sort", sort);
+  if (viewMode === "list") {
+    params.set("view", "list");
+    if (listSortDirection !== "desc") params.set("dir", listSortDirection);
+    if (listArtist !== "All") params.set("artist", listArtist);
+    if (listGenre !== "All") params.set("lgenre", listGenre);
+  }
+  const query = params.toString(),
+    hash = path || query ? `#/${path}${query ? `?${query}` : ""}` : "";
+  return location.pathname + location.search + hash;
+}
+// Filters and view changes rewrite the current entry instead of adding history.
+function syncRouteQuery() {
+  const route = parseRoute();
+  if (!route) return;
+  const url = routeUrl(route.path.join("/"));
+  if (url !== location.pathname + location.search + location.hash)
+    history.replaceState(history.state, "", url);
+}
+// Opening a dialog adds a history entry so the back button/gesture closes it.
+function navigate(path) {
+  history.pushState({ inApp: true }, "", routeUrl(path));
+  applyRoute();
+}
+// Leave a dialog route: step back if this app pushed it, otherwise (opened
+// from a shared link) replace it so back doesn't leave the app.
+function leaveRoute(fallbackPath = "") {
+  if (history.state?.inApp) history.back();
+  else {
+    history.replaceState(null, "", routeUrl(fallbackPath));
+    applyRoute();
+  }
+}
+function applyRoute() {
+  const route = parseRoute();
+  if (!route) return render();
+  const { path, params } = route,
+    sort = params.get("sort");
+  $("#searchInput").value = params.get("q") || "";
+  filter = params.get("genre") || "All";
+  $("#sortSelect").value = sortValues.includes(sort) ? sort : "added";
+  // Without any route the remembered view mode applies.
+  if (location.hash) viewMode = params.get("view") === "list" ? "list" : "grid";
+  listSortDirection = params.get("dir") === "asc" ? "asc" : "desc";
+  listArtist = params.get("artist") || "All";
+  listGenre = params.get("lgenre") || "All";
+  render();
+
+  const [page, id, mode] = path,
+    record = page === "record" ? records.find((r) => r.id === id) : null;
+  if (record) {
+    const busy = ["pending", "processing"].includes(record.aiStatus);
+    if (mode === "edit" && busy) history.replaceState(history.state, "", routeUrl(`record/${id}`));
+    showDetail(id, mode === "edit" && !busy);
+  } else if ($("#detailDialog").open) $("#detailDialog").close();
+  if (page === "add") {
+    if (!addDialog.open) openAddDialog();
+  } else if (addDialog.open) addDialog.close();
+}
+window.addEventListener("popstate", applyRoute);
+// Closing a dialog by ×, Esc, save or delete leaves its route. When the route
+// already changed (back button), there is nothing left to do.
+$("#detailDialog").addEventListener("close", () => {
+  if (parseRoute()?.path[0] === "record") leaveRoute();
+});
+addDialog.addEventListener("close", () => {
+  stopCamera();
+  if (parseRoute()?.path[0] === "add") leaveRoute();
+});
 window.vinylApp = {
   getRecords: () => records,
   selectCloudCollection: async (userId, preserveCurrent = false) => {
@@ -790,6 +889,8 @@ window.vinylApp = {
     records = next;
     writeDatabase();
     render();
+    // A shared record link may arrive before the record has synced to this device.
+    if (!$("#detailDialog").open && parseRoute()?.path[0] === "record") applyRoute();
   },
   notify: toast,
 };
