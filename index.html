@@ -21,9 +21,9 @@
       href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Noto+Sans+JP:wght@400;500;700&family=Playfair+Display:ital,wght@0,600;1,500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=10" />
+    <link rel="stylesheet" href="styles.css?v=11" />
     <link rel="stylesheet" href="ai-sources.css?v=1" />
-    <link rel="stylesheet" href="market.css?v=9" />
+    <link rel="stylesheet" href="market.css?v=10" />
     <link rel="stylesheet" href="camera.css?v=10" />
     <link rel="stylesheet" href="list-view.css?v=8" />
     <link rel="stylesheet" href="tracks.css?v=9" />
@@ -35,11 +35,6 @@
   <body>
     <header class="topbar">
       <a class="brand" href="#">VINYL<span>ARCHIVE</span></a>
-      <nav>
-        <button class="nav-link active" data-view="collection">
-          COLLECTION</button
-        ><button class="nav-link" data-view="market">MARKET</button>
-      </nav>
       <div class="top-actions">
         <button
           class="account-status"
@@ -125,20 +120,6 @@
           <p>最初の一枚を追加して、あなたのアーカイブを始めましょう。</p>
           <button class="add-btn" id="emptyAdd">＋ レコードを追加</button>
         </div>
-      </section>
-
-      <section id="marketView" class="hidden">
-        <div class="section-head">
-          <div>
-            <p class="eyebrow">MARKET PULSE</p>
-            <h2>中古市場価格</h2>
-          </div>
-          <p class="market-note">
-            落札履歴や販売例をもとにした参考価格です。根拠が限られる場合は概算として表示します。
-          </p>
-        </div>
-        <div class="market-summary" id="marketSummary"></div>
-        <div class="market-list" id="marketList"></div>
       </section>
     </main>
 
@@ -394,6 +375,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"></script>
     <script src="cloud-config.js?v=10"></script>
     <script src="cloud-sync.js?v=20"></script>
-    <script src="app.js?v=19"></script>
+    <script src="app.js?v=21"></script>
   </body>
 </html>

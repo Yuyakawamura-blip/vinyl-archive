@@ -146,6 +146,9 @@ const normalizeUrl = (value: unknown) => {
     return "";
   }
 };
+// Older batch uploads stored this status text as the record's notes.
+const batchPlaceholderNote =
+  "ジャケット画像を登録済み。自動解析を開始します。";
 const median = (values: number[]) => {
   const sorted = values
     .filter((value) => Number.isFinite(value) && value > 0)
@@ -408,7 +411,7 @@ Deno.serve(async (request) => {
       ...data,
       artist: result.artist || data.artist || "AIリソースなし",
       title: result.title || data.title,
-      year: Number(result.year) || 0,
+      year: Number(result.year) || Number(data.year) || 0,
       genre: result.genre || "Other",
       catalogNo: result.catalogNo || "",
       aTitle: result.aTitle || "",
@@ -426,7 +429,9 @@ Deno.serve(async (request) => {
         hasGroundedPrice || !preserveExistingPrice
           ? new Date().toISOString().slice(0, 10)
           : data.marketPriceChecked || "",
-      notes: [
+      // User-written notes are never overwritten; AI findings live in aiNotes.
+      notes: data.notes === batchPlaceholderNote ? "" : data.notes || "",
+      aiNotes: [
         result.notes,
         !hasUsefulResult
           ? "画像とウェブ検索からレコード情報を確認できませんでした。"

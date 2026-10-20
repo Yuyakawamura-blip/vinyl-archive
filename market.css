@@ -1,13 +1,5 @@
-.market-item {
-  grid-template-columns: 50px minmax(0, 1fr) 125px 110px;
-}
-
 .stats {
   grid-template-columns: repeat(3, 1fr);
-}
-
-.market-summary {
-  grid-template-columns: 1fr 1fr;
 }
 
 .record-added {
@@ -25,25 +17,6 @@
   display: block;
   font: 9px "DM Mono";
   margin-top: 8px;
-}
-
-.market-evidence {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.6;
-  margin: 5px 0 0;
-}
-
-.market-item > strong {
-  color: var(--green);
-  font: 600 17px "DM Mono";
-  text-align: right;
-}
-
-.market-item .source {
-  color: var(--muted);
-  font: 9px "DM Mono";
-  text-align: right;
 }
 
 .market-research {
@@ -72,28 +45,5 @@
 @media (max-width: 900px) {
   .stats {
     grid-template-columns: repeat(2, 1fr);
-  }
-
-  .market-summary {
-    grid-template-columns: 1fr;
-  }
-
-  .market-item {
-    grid-template-columns: 50px minmax(0, 1fr) 110px;
-  }
-
-  .market-item .source {
-    display: none;
-  }
-}
-
-@media (max-width: 560px) {
-  .market-item {
-    grid-template-columns: 45px minmax(0, 1fr) 90px;
-    gap: 10px;
-  }
-
-  .market-item > strong {
-    font-size: 14px;
   }
 }

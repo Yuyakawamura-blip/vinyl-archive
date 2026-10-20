@@ -232,7 +232,6 @@ function render() {
       }
     };
   });
-  renderMarket();
   renderNews();
 }
 function isStandalone() {
@@ -321,20 +320,6 @@ function trackRow(r, side, title) {
   const review = side === "B" && r.bTitleVerified !== true;
   return `<div class="track-row"><b>${side}</b><span>${esc(title)}${review ? "（要確認）" : ""}</span><div class="listen-links"><a class="listen-apple" href="${appleMusicSearch(r, title)}" aria-label="Apple Musicアプリで検索"> Music ↗</a><a href="${youtubeSearch(r, title)}" target="_blank" rel="noopener">YouTube</a></div></div>`;
 }
-function renderMarket() {
-  const pricedRecords = records.filter((r) => Number(r.marketPrice) > 0),
-    value = pricedRecords.reduce((sum, r) => sum + Number(r.marketPrice), 0);
-  $("#marketSummary").innerHTML =
-    `<div><strong>${yen(value)}</strong><span>調査済み市場価格の合計</span></div><div><strong>${pricedRecords.length}/${records.length}</strong><span>調査済みレコード</span></div>`;
-  $("#marketList").innerHTML = records
-    .slice()
-    .sort((a, b) => Number(b.marketPrice || 0) - Number(a.marketPrice || 0))
-    .map(
-      (r) =>
-        `<div class="market-item"><img src="${r.cover || placeholder(r)}"><div><strong>${esc(r.title)}</strong><br><small>${esc(r.artist)} · ${r.year || "年代不明"}</small><p class="market-evidence">${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "ウェブ調査による参考価格" : "価格情報が見つかっていません"))}</p></div><strong>${marketPriceLabel(r)}</strong><small class="source">追加日 ${esc(formatArchiveDate(r.added))}<br>調査 ${esc(r.marketPriceChecked || "—")}</small></div>`,
-    )
-    .join("");
-}
 function esc(s = "") {
   return String(s).replace(
     /[&<>"']/g,
@@ -373,7 +358,7 @@ function aiSourceList(sources = []) {
 function showDetail(id) {
   const r = records.find((x) => x.id === id);
   $("#detailContent").innerHTML =
-    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><button class="close" onclick="detailDialog.close()">×</button></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}"><div><p>${r.genre} · ${r.year || "年代不明"}</p><h2>${esc(r.title)}</h2><h3>${esc(r.artist)}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "次回同期時に再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET</span><b>${marketPriceLabel(r)}</b></div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" onclick="retryCloudAnalysis('${esc(r.id)}')">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button class="delete-btn" onclick="removeRecord('${esc(r.id)}')">このレコードを削除</button></div></div>`;
+    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><button class="close" onclick="detailDialog.close()">×</button></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}"><div><p>${r.genre} · ${r.year || "年代不明"}</p><h2>${esc(r.title)}</h2><h3>${esc(r.artist)}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "次回同期時に再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET</span><b>${marketPriceLabel(r)}</b></div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${r.aiNotes ? `<div class="market-research"><span>AI解析メモ</span><p>${esc(r.aiNotes)}</p></div>` : ""}${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" onclick="retryCloudAnalysis('${esc(r.id)}')">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button class="delete-btn" onclick="removeRecord('${esc(r.id)}')">このレコードを削除</button></div></div>`;
   $("#detailDialog").showModal();
 }
 window.removeRecord = (id) => {
@@ -560,7 +545,7 @@ function saveBatch() {
       marketPrice: null,
       purchasePrice: 0,
       catalogNo: "",
-      notes: "ジャケット画像を登録済み。自動解析を開始します。",
+      notes: "",
       cover,
       added: today,
       priceChecked: "",
@@ -678,20 +663,6 @@ $("#clearListFilters").onclick = () => {
   filter = "All";
   render();
 };
-document.querySelectorAll(".nav-link").forEach(
-  (b) =>
-    (b.onclick = () => {
-      document
-        .querySelectorAll(".nav-link")
-        .forEach((x) => x.classList.remove("active"));
-      b.classList.add("active");
-      $("#collectionView").classList.toggle(
-        "hidden",
-        b.dataset.view !== "collection",
-      );
-      $("#marketView").classList.toggle("hidden", b.dataset.view !== "market");
-    }),
-);
 $("#exportBtn").onclick = () => {
   const blob = new Blob([JSON.stringify(records, null, 2)], {
       type: "application/json",
