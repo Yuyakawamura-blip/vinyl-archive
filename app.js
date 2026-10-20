@@ -42,46 +42,171 @@ const formatArchiveDate = (value) => {
 };
 const tokyoToday = () =>
   new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(new Date());
-function openDatabase() {
+// IndexedDB layout (v2): one row per record in "records" and one Blob per
+// unsynced photo in "covers", both keyed by "<collection>/<id>". Only rows that
+// changed are written. v1 stored each collection as a single array with photos
+// inlined as data URLs; it is migrated on upgrade and left in "archive" as a backup.
+const rowKey = (collection, id) => `${collection}/${id}`;
+const localCovers = new Map(); // record id -> { blob, url } for photos not yet in the cloud
+const persistedRecords = new Map(); // record id -> { json, seq } as last written
+const persistedCovers = new Set(); // record ids whose photo Blob is stored
+function dataUrlToBlob(dataUrl) {
+  const [meta, data] = dataUrl.split(","),
+    mime = meta.match(/data:(.*?);/)?.[1] || "image/jpeg",
+    bytes = atob(data),
+    array = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) array[i] = bytes.charCodeAt(i);
+  return new Blob([array], { type: mime });
+}
+function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("vinyl-archive-db", 1);
-    request.onupgradeneeded = () => {
-      if (!request.result.objectStoreNames.contains("archive"))
-        request.result.createObjectStore("archive", { keyPath: "id" });
-    };
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+// Photos are stored as Blobs, so a record keeps only a displayable URL in memory.
+function storedRecord(record) {
+  const copy = { ...record };
+  if (!/^https:/.test(copy.cover || "")) delete copy.cover;
+  return copy;
+}
+function adoptDataUrlCovers() {
+  for (const record of records) {
+    if (!record.cover?.startsWith("data:image/")) continue;
+    const blob = dataUrlToBlob(record.cover),
+      url = URL.createObjectURL(blob);
+    localCovers.set(record.id, { blob, url });
+    record.cover = url;
+  }
+}
+const requestResult = (request) =>
+  new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
+function migrateArchive(tx) {
+  const recordStore = tx.objectStore("records"),
+    coverStore = tx.objectStore("covers"),
+    seqBase = Date.now() * 1000;
+  tx.objectStore("archive").getAll().onsuccess = (event) => {
+    for (const { id: collection, value } of event.target.result) {
+      (value || []).forEach((record, index) => {
+        const key = rowKey(collection, record.id);
+        if (record.cover?.startsWith("data:image/"))
+          coverStore.put({ key, collection, blob: dataUrlToBlob(record.cover) });
+        recordStore.put({ key, collection, seq: seqBase - index, record: storedRecord(record) });
+      });
+    }
+  };
 }
-function readDatabase() {
+function openDatabase() {
   return new Promise((resolve, reject) => {
-    const request = db
-      .transaction("archive", "readonly")
-      .objectStore("archive")
-      .get(databaseCollectionKey);
-    request.onsuccess = () => resolve(request.result?.value || null);
+    const request = indexedDB.open("vinyl-archive-db", 2);
+    request.onupgradeneeded = (event) => {
+      const database = request.result;
+      if (event.oldVersion < 2) {
+        database.createObjectStore("records", { keyPath: "key" }).createIndex("collection", "collection");
+        database.createObjectStore("covers", { keyPath: "key" }).createIndex("collection", "collection");
+      }
+      if (event.oldVersion === 1) migrateArchive(request.transaction);
+    };
+    request.onblocked = () => toast("ほかのタブで開いているVINYL ARCHIVEを閉じてください");
+    request.onsuccess = () => {
+      request.result.onversionchange = () => request.result.close();
+      resolve(request.result);
+    };
     request.onerror = () => reject(request.error);
   });
 }
+async function loadCollection() {
+  const tx = db.transaction(["records", "covers"]),
+    [rows, coverRows] = await Promise.all([
+      requestResult(tx.objectStore("records").index("collection").getAll(databaseCollectionKey)),
+      requestResult(tx.objectStore("covers").index("collection").getAll(databaseCollectionKey)),
+    ]);
+  localCovers.forEach(({ url }) => URL.revokeObjectURL(url));
+  localCovers.clear();
+  persistedRecords.clear();
+  persistedCovers.clear();
+  for (const { key, blob } of coverRows) {
+    const id = key.slice(databaseCollectionKey.length + 1);
+    localCovers.set(id, { blob, url: URL.createObjectURL(blob) });
+    persistedCovers.add(id);
+  }
+  rows.sort((a, b) => b.seq - a.seq);
+  for (const { record, seq } of rows)
+    persistedRecords.set(record.id, { json: JSON.stringify(record), seq });
+  records = rows.map(({ record }) => ({
+    ...record,
+    cover: localCovers.get(record.id)?.url || record.cover || "",
+  }));
+}
 function writeDatabase() {
-  if (!db) return;
-  const tx = db.transaction("archive", "readwrite");
-  tx.objectStore("archive").put({
-    id: databaseCollectionKey,
-    value: records,
-    updatedAt: new Date().toISOString(),
+  adoptDataUrlCovers();
+  // A local photo is kept only while the record still shows it; once the
+  // record carries the cloud URL the Blob is released.
+  for (const [id, { url }] of localCovers) {
+    if (records.find((record) => record.id === id)?.cover === url) continue;
+    URL.revokeObjectURL(url);
+    localCovers.delete(id);
+  }
+  if (!db) return Promise.resolve();
+  const collection = databaseCollectionKey,
+    tx = db.transaction(["records", "covers"], "readwrite"),
+    recordStore = tx.objectStore("records"),
+    coverStore = tx.objectStore("covers"),
+    seqBase = Date.now() * 1000,
+    current = new Set();
+  records.forEach((record, index) => {
+    const key = rowKey(collection, record.id),
+      stored = storedRecord(record),
+      json = JSON.stringify(stored),
+      previous = persistedRecords.get(record.id);
+    current.add(record.id);
+    if (previous?.json !== json) {
+      const seq = previous?.seq ?? seqBase - index;
+      recordStore.put({ key, collection, seq, record: stored });
+      persistedRecords.set(record.id, { json, seq });
+    }
+    const local = localCovers.get(record.id);
+    if (local && !persistedCovers.has(record.id)) {
+      coverStore.put({ key, collection, blob: local.blob });
+      persistedCovers.add(record.id);
+    } else if (!local && persistedCovers.has(record.id)) {
+      coverStore.delete(key);
+      persistedCovers.delete(record.id);
+    }
   });
-  tx.onerror = () => toast("端末内データベースへの保存に失敗しました");
+  for (const id of persistedRecords.keys()) {
+    if (current.has(id)) continue;
+    recordStore.delete(rowKey(collection, id));
+    coverStore.delete(rowKey(collection, id));
+    persistedRecords.delete(id);
+    persistedCovers.delete(id);
+  }
+  return new Promise((resolve) => {
+    tx.oncomplete = resolve;
+    tx.onerror = () => {
+      toast("端末内データベースへの保存に失敗しました");
+      resolve();
+    };
+  });
 }
 async function initApp() {
   try {
     db = await openDatabase();
-    const stored = await readDatabase();
-    records = withoutSamples(stored || JSON.parse(localStorage.getItem(KEY) || "null"));
+    await loadCollection();
+    // Records from before IndexedDB lived in localStorage.
+    if (!records.length) records = JSON.parse(localStorage.getItem(KEY) || "null") || [];
+    records = withoutSamples(records);
     writeDatabase();
     localStorage.removeItem(KEY);
   } catch (error) {
+    console.error(error);
     records = withoutSamples(JSON.parse(localStorage.getItem(KEY) || "null"));
+    adoptDataUrlCovers();
     toast("データベースを開けないため一時保存で起動しました");
   }
   // Restore filters from the URL before the first render writes them back.
@@ -702,8 +827,15 @@ $("#clearListFilters").onclick = () => {
   filter = "All";
   render();
 };
-$("#exportBtn").onclick = () => {
-  const blob = new Blob([JSON.stringify(records, null, 2)], {
+$("#exportBtn").onclick = async () => {
+  // Photos not yet in the cloud are embedded so the backup stays self-contained.
+  const exported = await Promise.all(
+    records.map(async (record) => {
+      const local = localCovers.get(record.id);
+      return local ? { ...record, cover: await blobToDataUrl(local.blob) } : record;
+    }),
+  );
+  const blob = new Blob([JSON.stringify(exported, null, 2)], {
       type: "application/json",
     }),
     a = document.createElement("a");
@@ -802,24 +934,25 @@ addDialog.addEventListener("close", () => {
 });
 window.vinylApp = {
   getRecords: () => records,
+  getLocalCover: (id) => localCovers.get(id)?.blob || null,
   selectCloudCollection: async (userId, preserveCurrent = false) => {
     const nextKey = userId ? `records:user:${userId}` : "records:guest";
     if (nextKey === databaseCollectionKey) return;
-    if (preserveCurrent && databaseCollectionKey === "records") {
-      const tx = db.transaction("archive", "readwrite");
-      tx.objectStore("archive").put({
-        id: nextKey,
-        value: records,
-        updatedAt: new Date().toISOString(),
-      });
-      await new Promise((resolve, reject) => {
-        tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error);
-        tx.onabort = () => reject(tx.error);
-      });
-    }
+    const carryOver = preserveCurrent && databaseCollectionKey === "records";
     databaseCollectionKey = nextKey;
-    records = withoutSamples(await readDatabase());
+    if (!db) {
+      if (!carryOver) records = [];
+      render();
+      return;
+    }
+    if (carryOver) {
+      // Write this device's records into the account's collection as new rows,
+      // alongside anything already cached there.
+      persistedRecords.clear();
+      persistedCovers.clear();
+      await writeDatabase();
+    }
+    await loadCollection();
     render();
   },
   replaceRecords: (next) => {

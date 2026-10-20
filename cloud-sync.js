@@ -29,13 +29,27 @@
   function localRecords() {
     return window.vinylApp?.getRecords?.() || [];
   }
-  function dataUrlToBlob(dataUrl) {
-    const [meta, data] = dataUrl.split(","),
-      mime = meta.match(/data:(.*?);/)?.[1] || "image/jpeg",
-      bytes = atob(data),
-      array = new Uint8Array(bytes.length);
-    for (let i = 0; i < bytes.length; i++) array[i] = bytes.charCodeAt(i);
-    return new Blob([array], { type: mime });
+  // Photo taken on this device that has not reached the cloud yet.
+  function localCover(record) {
+    return window.vinylApp?.getLocalCover?.(record.id) || null;
+  }
+  async function uploadCover(record, blob) {
+    const extension =
+        {
+          "image/png": "png",
+          "image/webp": "webp",
+          "image/heic": "heic",
+          "image/heif": "heif",
+        }[blob.type] || "jpg",
+      coverPath = `${currentUser.id}/${record.id}.${extension}`;
+    const { error } = await client.storage
+      .from("record-covers")
+      .upload(coverPath, blob, {
+        contentType: blob.type || "image/jpeg",
+        upsert: true,
+      });
+    if (error) throw error;
+    return coverPath;
   }
   function cleanRecord(record) {
     const copy = { ...record };
@@ -74,24 +88,8 @@
 
   async function uploadRecord(record, existingRecord = null) {
     let coverPath = existingRecord?.cover_path || record.coverPath || null;
-    if (!existingRecord && record.cover?.startsWith("data:image/")) {
-      const blob = dataUrlToBlob(record.cover),
-        extension =
-          {
-            "image/png": "png",
-            "image/webp": "webp",
-            "image/heic": "heic",
-            "image/heif": "heif",
-          }[blob.type] || "jpg";
-      coverPath = `${currentUser.id}/${record.id}.${extension}`;
-      const { error: uploadError } = await client.storage
-        .from("record-covers")
-        .upload(coverPath, blob, {
-          contentType: blob.type || "image/jpeg",
-          upsert: true,
-        });
-      if (uploadError) throw uploadError;
-    }
+    const blob = localCover(record);
+    if (!existingRecord && blob) coverPath = await uploadCover(record, blob);
     if (!existingRecord) {
       const now = new Date().toISOString();
       const { error } = await client.from("records").upsert(
@@ -106,18 +104,8 @@
         { onConflict: "id" },
       );
       if (error) throw error;
-    } else if (!coverPath && record.cover?.startsWith("data:image/")) {
-      const blob = dataUrlToBlob(record.cover);
-      const extension =
-        { "image/png": "png", "image/webp": "webp" }[blob.type] || "jpg";
-      coverPath = `${currentUser.id}/${record.id}.${extension}`;
-      const { error: uploadError } = await client.storage
-        .from("record-covers")
-        .upload(coverPath, blob, {
-          contentType: blob.type || "image/jpeg",
-          upsert: true,
-        });
-      if (uploadError) throw uploadError;
+    } else if (!coverPath && blob) {
+      coverPath = await uploadCover(record, blob);
       const { error } = await client
         .from("records")
         .update({ cover_path: coverPath, updated_at: new Date().toISOString() })
@@ -223,8 +211,7 @@
           const cached = existingById.get(row.id);
           if (
             cached?.coverPath === row.cover_path &&
-            cached.cover &&
-            !cached.cover.startsWith("data:image/") &&
+            cached.cover?.startsWith("https:") &&
             Number(cached.coverUrlExpiresAt) > Date.now() + 60 * 1000
           ) {
             cover = cached.cover;
@@ -259,7 +246,7 @@
     const localOnly = localRecords().filter(
       (record) =>
         !remoteIds.has(record.id) &&
-        (record.syncStatus === "pending" || record.cover?.startsWith("data:image/")),
+        (record.syncStatus === "pending" || localCover(record)),
     );
     window.vinylApp?.replaceRecords?.([...localOnly, ...merged]);
   }
