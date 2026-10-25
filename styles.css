@@ -363,6 +363,17 @@ form textarea:focus {
   transition: .25s;
   z-index: 50;
 }
+.toast button {
+  margin-left: 16px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #fff;
+  font: 700 12px "Noto Sans JP";
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
 .toast.show {
   transform: translateY(0);
 }
@@ -423,6 +434,9 @@ form textarea:focus {
   }
 }
 @media (max-width:560px) {
+  .add-label-long {
+    display: none;
+  }
   .topbar {
     padding: 0 18px;
   }

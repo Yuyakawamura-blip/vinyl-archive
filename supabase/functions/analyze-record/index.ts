@@ -309,7 +309,8 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
       artist: result.artist || knownArtist(data.artist),
       title: result.title || knownTitle(data.title),
       year: Number(result.year) || Number(data.year) || 0,
-      genre: result.genre || 'Other',
+      // Genres are free text in the app; the AI only fills one in when none was chosen.
+      genre: data.genre && data.genre !== 'Other' ? data.genre : result.genre || 'Other',
       catalogNo: result.catalogNo || data.catalogNo || '',
       aTitle: result.aTitle || data.aTitle || '',
       bTitle: result.bTitle || data.bTitle || '',

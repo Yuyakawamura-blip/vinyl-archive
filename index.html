@@ -46,7 +46,7 @@
           <i></i><span>同期設定中</span></button
         ><button class="icon-btn" id="exportBtn" title="バックアップを書き出す" aria-label="バックアップを書き出す">
           ↗</button
-        ><button class="add-btn" id="openAdd">＋ 撮影・一括追加</button>
+        ><button class="add-btn" id="openAdd">＋ <span class="add-label-long">レコードを</span>追加</button>
       </div>
     </header>
     <div class="sync-hint" id="syncHint" role="region" aria-label="同期のご案内" hidden>
@@ -69,7 +69,7 @@
               <input
                 id="searchInput"
                 aria-label="検索"
-                placeholder="アーティスト、タイトル、年代で検索" /></label
+                placeholder="タイトル、曲名、品番などで検索" /></label
             ><select id="sortSelect" aria-label="並べ替え">
               <option value="added">追加順</option>
               <option value="artist">アーティスト順</option>
@@ -237,17 +237,12 @@
                 placeholder="1959"
             /></label>
             <label
-              >ジャンル<select name="genre">
-                <option>Jazz</option>
-                <option>Rock</option>
-                <option>Soul</option>
-                <option>Electronic</option>
-                <option>Hip-Hop</option>
-                <option>Classical</option>
-                <option>Pop</option>
-                <option>Other</option>
-              </select></label
-            >
+              >ジャンル<input
+                name="genre"
+                list="genreOptions"
+                autocomplete="off"
+                placeholder="例：Jazz"
+            /></label>
             <label
               >市場価格（円）<input
                 name="marketPrice"
@@ -327,7 +322,8 @@
         </div>
       </div>
     </dialog>
-    <div class="toast" id="toast"></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <datalist id="genreOptions"></datalist>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"></script>
     <script type="module" src="app.js"></script>
   </body>

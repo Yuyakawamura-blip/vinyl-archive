@@ -1,4 +1,11 @@
-import { initCloudSync, queueCloudSync, deleteCloudRecord, retryCloudAnalysis } from "./cloud-sync.js";
+import {
+  initCloudSync,
+  queueCloudSync,
+  deleteCloudRecord,
+  cancelCloudDelete,
+  deleteUndoMs,
+  retryCloudAnalysis,
+} from "./cloud-sync.js";
 
 const KEY = "vinyl-archive-records-v1";
 // Earlier versions seeded four sample records with these ids; drop them on load.
@@ -261,6 +268,11 @@ function render() {
   const withSelected = (values, selected) =>
     selected === "All" || values.includes(selected) ? values : [selected, ...values];
   const all = ["All", ...withSelected([...genres], filter)];
+  // Genre inputs suggest the usual genres plus any used in the collection.
+  $("#genreOptions").innerHTML = [...new Set([...genreOptions, ...genres])]
+    .filter(Boolean)
+    .map((g) => `<option value="${esc(g)}"></option>`)
+    .join("");
   $("#genreRow").innerHTML = all
     .map(
       (g) =>
@@ -286,7 +298,7 @@ function render() {
     (r) =>
       (filter === "All" || r.genre === filter) &&
       (artistFilter === "All" || r.artist === artistFilter) &&
-      [r.artist, r.title, r.year, r.genre].join(" ").toLowerCase().includes(q),
+      [r.artist, r.title, r.aTitle, r.bTitle, r.catalogNo, r.year, r.genre].join(" ").toLowerCase().includes(q),
   );
   const compare = (a, b) => {
     if (sort === "artist") return (a.artist || "").localeCompare(b.artist || "", "ja");
@@ -387,13 +399,13 @@ function youtubeSearch(r, track) {
   return `https://www.youtube.com/results?search_query=${encodeURIComponent([r.artist, track].filter(Boolean).join(" "))}`;
 }
 function appleMusicSearch(r, track) {
-  return `music://music.apple.com/jp/search?term=${encodeURIComponent([r.artist, track].filter(Boolean).join(" "))}`;
+  return `https://music.apple.com/jp/search?term=${encodeURIComponent([r.artist, track].filter(Boolean).join(" "))}`;
 }
 function trackRow(r, side, title) {
   if (!title)
     return `<div class="track-row empty-track"><b>${side}</b><span>${side === "B" ? "未確認" : "曲名未登録"}</span></div>`;
   const review = side === "B" && r.bTitleVerified !== true;
-  return `<div class="track-row"><b>${side}</b><span>${esc(title)}${review ? "（要確認）" : ""}</span><div class="listen-links"><a class="listen-apple" href="${appleMusicSearch(r, title)}" aria-label="Apple Musicアプリで検索"> Music ↗</a><a href="${youtubeSearch(r, title)}" target="_blank" rel="noopener">YouTube</a></div></div>`;
+  return `<div class="track-row"><b>${side}</b><span>${esc(title)}${review ? "（要確認）" : ""}</span><div class="listen-links"><a class="listen-apple" href="${appleMusicSearch(r, title)}" target="_blank" rel="noopener" aria-label="Apple Musicで検索"> Music ↗</a><a href="${youtubeSearch(r, title)}" target="_blank" rel="noopener">YouTube</a></div></div>`;
 }
 function esc(s = "") {
   return String(s).replace(
@@ -432,7 +444,6 @@ function aiSourceList(sources = []) {
 }
 const genreOptions = ["Jazz", "Rock", "Soul", "Electronic", "Hip-Hop", "Classical", "Pop", "Other"];
 function detailEditor(r) {
-  const genres = genreOptions.includes(r.genre) || !r.genre ? genreOptions : [...genreOptions, r.genre];
   return `<form class="detail-edit" id="detailEditForm" novalidate>
     <div class="fields">
       <label>アーティスト名<input name="artist" required value="${esc(r.artist)}"></label>
@@ -440,7 +451,7 @@ function detailEditor(r) {
       <label class="side-field side-a">A面 曲名<input name="aTitle" value="${esc(r.aTitle)}"></label>
       <label class="side-field side-b">B面 曲名<input name="bTitle" value="${esc(r.bTitle)}"></label>
       <label>発売年<input name="year" type="number" min="1900" max="2099" value="${Number(r.year) > 0 ? Number(r.year) : ""}"></label>
-      <label>ジャンル<select name="genre">${genres.map((g) => `<option${g === (r.genre || "Other") ? " selected" : ""}>${esc(g)}</option>`).join("")}</select></label>
+      <label>ジャンル<input name="genre" list="genreOptions" autocomplete="off" value="${esc(r.genre || "Other")}"></label>
       <label>市場価格（円）<input name="marketPrice" type="number" min="0" step="100" value="${Number(r.marketPrice) > 0 ? Number(r.marketPrice) : ""}"></label>
     </div>
     <label>メモ<textarea name="notes" rows="3">${esc(r.notes)}</textarea></label>
@@ -474,7 +485,7 @@ function saveRecordEdit(r, form) {
     bTitle,
     aTitle: d.aTitle.trim(),
     year: Number(d.year) || 0,
-    genre: d.genre,
+    genre: d.genre.trim() || "Other",
     notes: d.notes.trim(),
   });
   // Saving an edit means the user has reviewed the record, so clear AI review states.
@@ -517,21 +528,58 @@ function showDetail(id, editing = false) {
   }
   if (!$("#detailDialog").open) $("#detailDialog").showModal();
 }
+// Deleting is immediate; the toast offers an undo until the cloud delete runs.
 function removeRecord(id) {
-  if (confirm("このレコードをコレクションから削除しますか？")) {
-    const removed = records.find((r) => r.id === id);
-    records = records.filter((r) => r.id !== id);
-    writeDatabase();
-    render();
-    deleteCloudRecord(id, removed?.coverPath);
-    $("#detailDialog").close();
-    toast("削除しました。ほかの端末にも自動反映します");
-  }
+  const index = records.findIndex((r) => r.id === id);
+  if (index < 0) return;
+  const removed = records[index],
+    // writeDatabase drops the photo Blob of a removed record, so keep it for undo.
+    localBlob = localCovers.get(id)?.blob;
+  records = records.filter((r) => r.id !== id);
+  writeDatabase();
+  render();
+  deleteCloudRecord(id, removed.coverPath);
+  $("#detailDialog").close();
+  toast("削除しました", {
+    label: "元に戻す",
+    duration: deleteUndoMs,
+    run: () => {
+      cancelCloudDelete(id);
+      if (localBlob) {
+        const url = URL.createObjectURL(localBlob);
+        localCovers.set(id, { blob: localBlob, url });
+        removed.cover = url;
+      }
+      records.splice(Math.min(index, records.length), 0, removed);
+      writeDatabase();
+      render();
+      toast("元に戻しました");
+    },
+  });
 }
-function toast(t) {
-  $("#toast").textContent = t;
-  $("#toast").classList.add("show");
-  setTimeout(() => $("#toast").classList.remove("show"), 2200);
+let toastTimer = null;
+// The action expires with the toast (e.g. undo ends when the cloud delete runs).
+function hideToast() {
+  $("#toast").classList.remove("show");
+  $("#toast button")?.remove();
+}
+// Messages stay long enough to read; one with an action stays for `duration`.
+function toast(text, action = null) {
+  const box = $("#toast");
+  box.replaceChildren(text);
+  if (action) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = action.label;
+    button.onclick = () => {
+      hideToast();
+      action.run();
+    };
+    box.append(button);
+  }
+  box.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, action?.duration || Math.max(4000, text.length * 120));
 }
 const addDialog = $("#addDialog");
 let captureFeedbackTimer = null;
@@ -807,6 +855,7 @@ $("#recordForm").onsubmit = (e) => {
     ...d,
     id: crypto.randomUUID(),
     year: Number(d.year),
+    genre: d.genre.trim() || "Other",
     marketPrice: d.marketPrice === "" ? null : Number(d.marketPrice),
     marketPriceBasis: d.marketPrice === "" ? "" : "manual",
     marketPriceNotes: d.marketPrice === "" ? "" : "手入力の市場価格です。",

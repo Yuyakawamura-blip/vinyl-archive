@@ -77,15 +77,20 @@ function forgetCachedCovers(paths) {
     )
     .catch(() => {});
 }
+// Deleted records wait this long before leaving the cloud, so the delete can be undone.
+export const deleteUndoMs = 8000;
+// Each entry is { id, coverPath, at }; the oldest app versions stored bare ids.
 function pendingDeletes() {
   try {
-    return JSON.parse(localStorage.getItem(pendingDeleteKey) || "[]");
+    return JSON.parse(localStorage.getItem(pendingDeleteKey) || "[]").map((item) =>
+      typeof item === "string" ? { id: item, coverPath: null } : item,
+    );
   } catch {
     return [];
   }
 }
-function setPendingDeletes(ids) {
-  localStorage.setItem(pendingDeleteKey, JSON.stringify([...new Set(ids)]));
+function setPendingDeletes(items) {
+  localStorage.setItem(pendingDeleteKey, JSON.stringify(items));
 }
 
 async function uploadRecord(record, existingRecord = null) {
@@ -151,8 +156,8 @@ async function startAnalysis(record) {
 }
 
 async function removePendingRecords() {
-  const pending = pendingDeletes().map((item) =>
-    typeof item === "string" ? { id: item, coverPath: null } : item,
+  const pending = pendingDeletes().filter(
+    (item) => !item.at || Date.now() - item.at >= deleteUndoMs,
   );
   if (!pending.length) return;
   const { error } = await client
@@ -166,7 +171,8 @@ async function removePendingRecords() {
   const paths = pending.map((item) => item.coverPath).filter(Boolean);
   if (paths.length) await client.storage.from("record-covers").remove(paths);
   forgetCachedCovers(paths);
-  setPendingDeletes([]);
+  const removed = new Set(pending.map((item) => item.id));
+  setPendingDeletes(pendingDeletes().filter((item) => !removed.has(item.id)));
 }
 
 async function downloadRecords() {
@@ -176,8 +182,10 @@ async function downloadRecords() {
     .order("created_at", { ascending: false });
   if (error) throw error;
   const existingById = new Map(localRecords().map((record) => [record.id, record]));
+  // A record deleted on this device stays hidden until its cloud delete runs.
+  const deleting = new Set(pendingDeletes().map((item) => item.id));
   const hydrated = await Promise.all(
-    (data || []).map(async (row) => {
+    (data || []).filter((row) => !deleting.has(row.id)).map(async (row) => {
       let cover = "";
       let coverUrlExpiresAt = 0;
       if (row.cover_path) {
@@ -552,8 +560,11 @@ export function retryCloudAnalysis(recordId) {
   syncAll();
 }
 export function deleteCloudRecord(id, coverPath) {
-  setPendingDeletes([...pendingDeletes(), { id, coverPath }]);
-  queueCloudSync();
+  setPendingDeletes([...pendingDeletes(), { id, coverPath, at: Date.now() }]);
+  setTimeout(queueCloudSync, deleteUndoMs + 100);
+}
+export function cancelCloudDelete(id) {
+  setPendingDeletes(pendingDeletes().filter((item) => item.id !== id));
 }
 window.addEventListener("online", queueCloudSync);
 document.addEventListener("visibilitychange", () => {
