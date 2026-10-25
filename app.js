@@ -698,6 +698,31 @@ function openAddDialog() {
   captureMessage("");
   addDialog.showModal();
 }
+const addTabs = [...document.querySelectorAll("[data-add-tab]")];
+function showAddTab(name) {
+  for (const tab of addTabs) {
+    const selected = tab.dataset.addTab === name;
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+    $(`#${tab.getAttribute("aria-controls")}`).hidden = !selected;
+  }
+}
+// Switching tabs rewrites the route instead of adding history, like filters do.
+function selectAddTab(name) {
+  stopCamera();
+  $("#uploadZone").classList.remove("hidden");
+  history.replaceState(history.state, "", routeUrl(name === "manual" ? "add/manual" : "add"));
+  showAddTab(name);
+}
+addTabs.forEach((tab, index) => {
+  tab.onclick = () => selectAddTab(tab.dataset.addTab);
+  tab.onkeydown = (event) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    const next = addTabs[(index + (event.key === "ArrowRight" ? 1 : addTabs.length - 1)) % addTabs.length];
+    selectAddTab(next.dataset.addTab);
+    next.focus();
+  };
+});
 $("#openAdd").onclick = $("#emptyAdd").onclick = () => navigate("add");
 $("#closeDialog").onclick = $("#cancelDialog").onclick = () => {
   stopCamera();
@@ -823,7 +848,7 @@ $("#exportBtn").onclick = async () => {
 };
 // URL routing. Routes live in the hash so they work on GitHub Pages:
 //   #/?q=..&genre=..&sort=..&view=list&dir=asc&artist=..&lgenre=..
-//   #/record/<id>   #/record/<id>/edit   #/add
+//   #/record/<id>   #/record/<id>/edit   #/add   #/add/manual
 // Supabase auth redirects also use the hash (#access_token=...), so only
 // hashes starting with "#/" are treated as routes.
 const sortValues = [...$("#sortSelect").options].map((option) => option.value);
@@ -895,6 +920,7 @@ function applyRoute() {
     showDetail(id, mode === "edit" && !busy);
   } else if ($("#detailDialog").open) $("#detailDialog").close();
   if (page === "add") {
+    showAddTab(id === "manual" ? "manual" : "photo");
     if (!addDialog.open) openAddDialog();
   } else if (addDialog.open) addDialog.close();
 }

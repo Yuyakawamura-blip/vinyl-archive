@@ -294,20 +294,6 @@ dialog form,
   font-size: 11px;
   color: var(--muted);
 }
-.lookup {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: var(--cream);
-  padding: 10px 14px;
-  font-size: 11px;
-}
-.lookup button {
-  background: none;
-  border: 0;
-  text-decoration: underline;
-  cursor: pointer;
-}
 .fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -334,10 +320,6 @@ form textarea {
 form input:focus,
 form textarea:focus {
   border-color: var(--orange);
-}
-.api-note {
-  font-size: 10px;
-  color: var(--muted);
 }
 .dialog-actions {
   display: flex;
@@ -739,14 +721,8 @@ form textarea:focus {
 .capture-status.count-pop {
   animation: count-pop 0.48s cubic-bezier(0.2, 0.9, 0.3, 1.45);
 }
-.batch-camera-active .quick-capture,
-.batch-camera-active .manual-divider,
-.batch-camera-active .upload-zone,
-.batch-camera-active .lookup,
-.batch-camera-active .fields,
-.batch-camera-active > label,
-.batch-camera-active .api-note,
-.batch-camera-active .dialog-actions {
+.batch-camera-active .add-tabs,
+.batch-camera-active .quick-capture {
   display: none !important;
 }
 .batch-camera-active .camera-panel {
@@ -1240,9 +1216,40 @@ form textarea:focus {
 }
 
 /* ---- Batch photo capture ---- */
+.add-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.add-tabs button {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--muted);
+  cursor: pointer;
+  font: 500 13px "Noto Sans JP";
+  padding: 12px 8px;
+}
+.add-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+}
+.add-tabs button:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: -2px;
+}
+.quick-capture[hidden],
+.manual-entry[hidden] {
+  display: none;
+}
+.manual-entry {
+  padding-top: 20px;
+}
 .quick-capture {
   padding: 22px !important;
-  margin: 24px 0 18px;
+  margin: 20px 0 18px;
   background: var(--ink);
   color: #fff;
 }
@@ -1250,45 +1257,15 @@ form textarea:focus {
   display: grid;
   gap: 5px;
 }
-.quick-badge {
-  width: max-content;
-  background: var(--orange);
-  padding: 4px 7px;
-  font: 500 9px "DM Mono";
-  letter-spacing: 0.12em;
-}
 .quick-copy h3 {
   font: 600 32px "Playfair Display";
   margin: 0;
 }
-.quick-copy p,
-.future-ai {
+.quick-copy p {
   color: #aaa;
   font-size: 11px;
   line-height: 1.7;
   margin: 0;
-}
-.quick-steps {
-  display: flex;
-  gap: 8px;
-  margin: 16px 0 0;
-}
-.quick-steps span {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #bbb;
-  font-size: 10px;
-}
-.quick-steps b {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border: 1px solid #666;
-  border-radius: 50%;
-  color: #fff;
-  font: 500 9px "DM Mono";
 }
 .quick-actions {
   display: flex;
@@ -1393,25 +1370,6 @@ form textarea:focus {
   opacity: 0.35;
   cursor: not-allowed;
 }
-.future-ai {
-  border-top: 1px solid #333;
-  padding-top: 12px;
-}
-.manual-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--muted);
-  font-size: 10px;
-  margin: 24px 0;
-}
-.manual-divider:before,
-.manual-divider:after {
-  content: "";
-  height: 1px;
-  background: var(--line);
-  flex: 1;
-}
 @media (max-width: 560px) {
   .quick-capture {
     margin-left: -22px;
@@ -1420,10 +1378,6 @@ form textarea:focus {
   }
   .quick-actions {
     display: grid;
-  }
-  .quick-steps {
-    display: grid;
-    grid-template-columns: 1fr;
   }
   .quick-copy h3 {
     font-size: 28px;

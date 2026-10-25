@@ -116,16 +116,20 @@
           </div>
           <button type="button" class="close" id="closeDialog">×</button>
         </div>
-        <section class="quick-capture" id="quickCapture">
+        <div class="add-tabs" role="tablist" aria-label="追加方法">
+          <button type="button" role="tab" id="addTabPhoto" data-add-tab="photo" aria-controls="quickCapture" aria-selected="true">
+            写真で追加（AI）
+          </button>
+          <button type="button" role="tab" id="addTabManual" data-add-tab="manual" aria-controls="manualEntry" aria-selected="false" tabindex="-1">
+            手入力
+          </button>
+        </div>
+        <section class="quick-capture" id="quickCapture" role="tabpanel" aria-labelledby="addTabPhoto">
           <div class="quick-copy">
             <h3>撮る。</h3>
             <p>
-              何枚でも連続撮影し、最後に一度だけまとめてアップロードします。
+              何枚でも連続撮影し、最後にまとめてアップロードします。アップロード後、AIがアーティスト・曲名・市場価格を解析します。
             </p>
-          </div>
-          <div class="quick-steps">
-            <span><b>1</b>連続撮影</span><span><b>2</b>撮影完了</span
-            ><span><b>3</b>まとめてアップロード</span>
           </div>
           <div class="quick-actions">
             <button type="button" class="quick-camera" id="startBatchCamera">
@@ -162,9 +166,6 @@
               まとめてアップロード
             </button>
           </div>
-          <p class="future-ai">
-            アップロード後にAI解析を自動開始します
-          </p>
         </section>
         <div class="camera-panel" id="cameraPanel">
           <video id="cameraVideo" autoplay playsinline muted></video>
@@ -193,84 +194,83 @@
             ></button>
           </div>
         </div>
-        <div class="manual-divider"><span>または1枚ずつ詳しく入力</span></div>
-        <div class="upload-zone" id="uploadZone">
-          <input type="file" id="coverInput" accept="image/*" hidden /><img
-            id="coverPreview"
-            alt=""
-          />
-          <div id="uploadPrompt">
-            <div class="camera">▣</div>
-            <strong>ジャケット写真</strong
-            ><span>アプリ内カメラで撮影、または既存写真を選択</span>
-            <div class="photo-actions">
-              <button type="button" id="openCamera">カメラで撮影</button
-              ><button type="button" id="choosePhoto">写真を選択</button>
+        <div class="manual-entry" id="manualEntry" role="tabpanel" aria-labelledby="addTabManual" hidden>
+          <div class="upload-zone" id="uploadZone">
+            <input type="file" id="coverInput" accept="image/*" hidden /><img
+              id="coverPreview"
+              alt=""
+            />
+            <div id="uploadPrompt">
+              <div class="camera">▣</div>
+              <strong>ジャケット写真</strong
+              ><span>アプリ内カメラで撮影、または既存写真を選択</span>
+              <div class="photo-actions">
+                <button type="button" id="openCamera">カメラで撮影</button
+                ><button type="button" id="choosePhoto">写真を選択</button>
+              </div>
+              <small>アプリ内撮影は写真ライブラリに保存されません</small>
             </div>
-            <small>アプリ内撮影は写真ライブラリに保存されません</small>
           </div>
-        </div>
-        <div class="lookup">
-        </div>
-        <div class="fields">
+          <div class="fields">
+            <label
+              >アーティスト名<input
+                name="artist"
+                required
+                placeholder="例：Miles Davis"
+            /></label>
+            <label
+              >タイトル<input
+                name="title"
+                required
+                placeholder="例：Kind of Blue"
+            /></label>
+            <label class="side-field side-a"
+              >A面 曲名<input name="aTitle" placeholder="例：曲名（A面）"
+            /></label>
+            <label class="side-field side-b"
+              >B面 曲名<input name="bTitle" placeholder="例：曲名（B面）"
+            /></label>
+            <label
+              >発売年<input
+                name="year"
+                type="number"
+                min="1900"
+                max="2099"
+                placeholder="1959"
+            /></label>
+            <label
+              >ジャンル<select name="genre">
+                <option>Jazz</option>
+                <option>Rock</option>
+                <option>Soul</option>
+                <option>Electronic</option>
+                <option>Hip-Hop</option>
+                <option>Classical</option>
+                <option>Pop</option>
+                <option>Other</option>
+              </select></label
+            >
+            <label
+              >市場価格（円）<input
+                name="marketPrice"
+                type="number"
+                min="0"
+                step="100"
+                placeholder="4500"
+            /></label>
+          </div>
           <label
-            >アーティスト名<input
-              name="artist"
-              required
-              placeholder="例：Miles Davis"
-          /></label>
-          <label
-            >タイトル<input
-              name="title"
-              required
-              placeholder="例：Kind of Blue"
-          /></label>
-          <label class="side-field side-a"
-            >A面 曲名<input name="aTitle" placeholder="例：曲名（A面）"
-          /></label>
-          <label class="side-field side-b"
-            >B面 曲名<input name="bTitle" placeholder="例：曲名（B面）"
-          /></label>
-          <label
-            >発売年<input
-              name="year"
-              type="number"
-              min="1900"
-              max="2099"
-              placeholder="1959"
-          /></label>
-          <label
-            >ジャンル<select name="genre">
-              <option>Jazz</option>
-              <option>Rock</option>
-              <option>Soul</option>
-              <option>Electronic</option>
-              <option>Hip-Hop</option>
-              <option>Classical</option>
-              <option>Pop</option>
-              <option>Other</option>
-            </select></label
-          >
-          <label
-            >市場価格（円）<input
-              name="marketPrice"
-              type="number"
-              min="0"
-              step="100"
-              placeholder="4500"
-          /></label>
-        </div>
-        <label
-          >メモ<textarea
-            name="notes"
-            rows="3"
-            placeholder="購入店、プレス情報、思い出など"
-          ></textarea>
-        </label>
-        <div class="dialog-actions">
-          <button type="button" class="secondary" id="cancelDialog">
-            キャンセル</button
-          ><button class="add-btn" type="submit">手入力で保存</button>
+            >メモ<textarea
+              name="notes"
+              rows="3"
+              placeholder="購入店、プレス情報、思い出など"
+            ></textarea>
+          </label>
+          <div class="dialog-actions">
+            <button type="button" class="secondary" id="cancelDialog">
+              キャンセル</button
+            ><button class="add-btn" type="submit">保存</button>
+          </div>
         </div>
       </form>
     </dialog>
