@@ -101,6 +101,26 @@ main {
   font: 600 28px "Playfair Display";
   display: block;
 }
+.stat-action {
+  display: block;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--orange);
+  background: transparent;
+  color: var(--ink);
+  font: 500 12px "Noto Sans JP";
+  cursor: pointer;
+}
+.stat-action:hover {
+  background: var(--orange);
+  color: #fff;
+}
+.stat-progress {
+  display: block;
+  margin-top: 12px;
+  color: var(--orange);
+  font: 500 11px "DM Mono";
+}
 .stat span {
   font: 11px "DM Mono";
   letter-spacing: .12em;

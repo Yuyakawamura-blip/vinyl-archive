@@ -293,7 +293,8 @@ async function syncAll() {
         const shouldAnalyze =
           record.aiRetryRequested || (!edited && (!existingRecord || missingCover));
         await uploadRecord(record, existingRecord);
-        if (shouldAnalyze && record.coverPath) analyses.push(startAnalysis(record));
+        // Start a few right away; pg_cron works through the rest a few per minute.
+        if (shouldAnalyze && record.coverPath && analyses.length < 3) analyses.push(startAnalysis(record));
       } catch (error) {
         console.error(`Could not sync record ${record.id}`, error);
         record.syncStatus = "pending";
@@ -558,6 +559,28 @@ export function retryCloudAnalysis(recordId) {
   app.replaceRecords(app.getRecords());
   document.querySelector("#detailDialog")?.close();
   syncAll();
+}
+// Queue price-only research for many records; the AI keeps their existing names.
+// Returns whether anything was queued.
+export function requestPriceResearch(recordIds) {
+  if (!currentUser) {
+    app.notify("価格調査にはログインが必要です");
+    return false;
+  }
+  const ids = new Set(recordIds);
+  for (const record of localRecords()) {
+    if (!ids.has(record.id) || !record.coverPath) continue;
+    Object.assign(record, {
+      aiStatus: "pending",
+      aiError: null,
+      aiRetryRequested: true,
+      aiResearchMode: "price",
+      syncStatus: "pending",
+    });
+  }
+  app.replaceRecords(app.getRecords());
+  syncAll();
+  return true;
 }
 export function deleteCloudRecord(id, coverPath) {
   setPendingDeletes([...pendingDeletes(), { id, coverPath, at: Date.now() }]);

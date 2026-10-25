@@ -304,17 +304,24 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
 
     const hasUsefulResult = [result.artist, result.title, result.catalogNo, result.aTitle, result.bTitle]
       .some((value) => String(value || '').trim()) || Number(result.year) > 0;
+    // Bulk price research ("price" mode) keeps every name the record already has
+    // and only fills empty ones; a normal analysis prefers what the AI found.
+    const priceOnly = data.aiResearchMode === 'price';
+    const pick = <T>(current: T, found: T) => priceOnly ? current || found : found || current;
     const nextData = {
       ...data,
-      artist: result.artist || knownArtist(data.artist),
-      title: result.title || knownTitle(data.title),
-      year: Number(result.year) || Number(data.year) || 0,
+      aiResearchMode: undefined,
+      artist: pick(knownArtist(data.artist), result.artist || ''),
+      title: pick(knownTitle(data.title), result.title || ''),
+      year: pick(Number(data.year) || 0, Number(result.year) || 0),
       // Genres are free text in the app; the AI only fills one in when none was chosen.
       genre: data.genre && data.genre !== 'Other' ? data.genre : result.genre || 'Other',
-      catalogNo: result.catalogNo || data.catalogNo || '',
-      aTitle: result.aTitle || data.aTitle || '',
-      bTitle: result.bTitle || data.bTitle || '',
-      bTitleVerified: result.bTitle ? Boolean(result.bTitleVerified) : Boolean(data.bTitleVerified),
+      catalogNo: pick(data.catalogNo || '', result.catalogNo || ''),
+      aTitle: pick(data.aTitle || '', result.aTitle || ''),
+      bTitle: pick(data.bTitle || '', result.bTitle || ''),
+      bTitleVerified: (priceOnly ? !data.bTitle && result.bTitle : result.bTitle)
+        ? Boolean(result.bTitleVerified)
+        : Boolean(data.bTitleVerified),
       marketPrice,
       marketPriceBasis,
       marketPriceConfidence: hasGroundedPrice
@@ -333,12 +340,17 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
         `AI信頼度 ${Math.round((Number(result.confidence) || 0) * 100)}%`,
       ].filter(Boolean).join(' / '),
       aiConfidence: Number(result.confidence) || 0,
-      aiNeedsReview: Boolean(result.needsReview || (result.bTitle && !result.bTitleVerified)),
+      // Price research leaves the record's review state as it was.
+      aiNeedsReview: priceOnly
+        ? Boolean(data.aiNeedsReview)
+        : Boolean(result.needsReview || (result.bTitle && !result.bTitleVerified)),
       aiSources,
     };
-    const aiStatus = !hasUsefulResult
-      ? 'no_resources'
-      : nextData.aiNeedsReview || Number(result.confidence) < 0.75 ? 'review' : 'complete';
+    const aiStatus = priceOnly
+      ? nextData.aiNeedsReview ? 'review' : 'complete'
+      : !hasUsefulResult
+        ? 'no_resources'
+        : nextData.aiNeedsReview || Number(result.confidence) < 0.75 ? 'review' : 'complete';
     const {error: updateError} = await client.from('records').update({
       data: nextData,
       ai_status: aiStatus,

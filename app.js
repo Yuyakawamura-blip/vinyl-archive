@@ -5,6 +5,7 @@ import {
   cancelCloudDelete,
   deleteUndoMs,
   retryCloudAnalysis,
+  requestPriceResearch,
 } from "./cloud-sync.js";
 
 const KEY = "vinyl-archive-records-v1";
@@ -261,9 +262,19 @@ function render() {
     estimatedValue = pricedRecords
       .filter(isEstimatedPrice)
       .reduce((s, r) => s + Number(r.marketPrice), 0),
-    genres = new Set(records.map((r) => r.genre));
+    genres = new Set(records.map((r) => r.genre)),
+    // Only records whose photo is in the cloud can be researched.
+    unpriced = records.filter((r) => !(Number(r.marketPrice) > 0) && r.coverPath && !awaitingAi(r)),
+    researching = records.filter((r) => r.aiResearchMode === "price" && awaitingAi(r)).length;
+  const priceAction = researching
+    ? `<small class="stat-progress">AI価格調査中 · 残り${researching}件</small>`
+    : unpriced.length
+      ? `<button type="button" class="stat-action" id="researchPrices">未調査の${unpriced.length}件をAIで価格調査</button>`
+      : "";
   $("#stats").innerHTML =
-    `<div class="stat"><strong>${records.length}</strong><span>RECORDS</span></div><div class="stat"><strong>${genres.size}</strong><span>GENRES</span></div><div class="stat"><strong>${yen(value)}</strong><span>MARKET VALUE · ${pricedRecords.length}/${records.length}件調査済み${estimatedValue ? ` · うちAI概算 ${yen(estimatedValue)}` : ""}</span></div>`;
+    `<div class="stat"><strong>${records.length}</strong><span>RECORDS</span></div><div class="stat"><strong>${genres.size}</strong><span>GENRES</span></div><div class="stat"><strong>${yen(value)}</strong><span>MARKET VALUE · ${pricedRecords.length}/${records.length}件調査済み${estimatedValue ? ` · うちAI概算 ${yen(estimatedValue)}` : ""}</span>${priceAction}</div>`;
+  if (unpriced.length && !researching)
+    $("#researchPrices").onclick = () => researchUnpriced(unpriced.map((r) => r.id));
   // Keep a filter from the URL selectable even before matching records have synced.
   const withSelected = (values, selected) =>
     selected === "All" || values.includes(selected) ? values : [selected, ...values];
@@ -527,6 +538,17 @@ function showDetail(id, editing = false) {
     if (r.coverPath) $("#retryAnalysis").onclick = () => retryCloudAnalysis(id);
   }
   if (!$("#detailDialog").open) $("#detailDialog").showModal();
+}
+function researchUnpriced(ids) {
+  const minutes = Math.ceil(ids.length / 3);
+  if (
+    !confirm(
+      `参考価格が未調査の${ids.length}件を、Geminiとウェブ検索で再調査します。アーティスト名・タイトル・曲名など入力済みの項目は変更せず、参考価格と調査メモだけを更新します。\n\n1件ごとに複数回の検索が発生し、月5,000回の無料検索枠を超えると課金対象になる可能性があります。サーバーが1分に3件ずつ処理するため、完了まで約${minutes}分かかります。実行しますか？`,
+    )
+  )
+    return;
+  if (!requestPriceResearch(ids)) return;
+  toast(`${ids.length}件の価格調査を予約しました。約${minutes}分で完了します`);
 }
 // Deleting is immediate; the toast offers an undo until the cloud delete runs.
 function removeRecord(id) {
