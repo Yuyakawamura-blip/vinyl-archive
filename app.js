@@ -6,9 +6,8 @@ const withoutSamples = (list) =>
   (list || []).filter((record) => !String(record.id).startsWith("demo-"));
 let records = [];
 let filter = "All";
-let listSortDirection = "desc";
-let listArtist = "All";
-let listGenre = "All";
+let sortDirection = "desc";
+let artistFilter = "All";
 let coverData = "";
 let cameraStream = null;
 let cameraMode = "manual";
@@ -18,6 +17,8 @@ let databaseCollectionKey = "records";
 let viewMode = localStorage.getItem("vinyl-archive-view") || "grid";
 const $ = (s) => document.querySelector(s),
   yen = (n) => "¥" + Number(n || 0).toLocaleString("ja-JP");
+// Dates and numbers start with the newest or highest; names start from A.
+const defaultDirection = (sort) => (["added", "year", "price"].includes(sort) ? "desc" : "asc");
 const isEstimatedPrice = (record) => record.marketPriceBasis === "estimate";
 const priceBasisLabels = { evidence: "相場", estimate: "AI概算", manual: "手入力" };
 const marketPriceLabel = (record) =>
@@ -230,7 +231,10 @@ function render() {
     genres = new Set(records.map((r) => r.genre));
   $("#stats").innerHTML =
     `<div class="stat"><strong>${records.length}</strong><span>RECORDS</span></div><div class="stat"><strong>${genres.size}</strong><span>GENRES</span></div><div class="stat"><strong>${yen(value)}</strong><span>MARKET VALUE · ${pricedRecords.length}/${records.length}件調査済み${estimatedValue ? ` · うちAI概算 ${yen(estimatedValue)}` : ""}</span></div>`;
-  const all = ["All", ...genres];
+  // Keep a filter from the URL selectable even before matching records have synced.
+  const withSelected = (values, selected) =>
+    selected === "All" || values.includes(selected) ? values : [selected, ...values];
+  const all = ["All", ...withSelected([...genres], filter)];
   $("#genreRow").innerHTML = all
     .map(
       (g) =>
@@ -246,25 +250,16 @@ function render() {
   );
   const q = $("#searchInput").value.toLowerCase(),
     sort = $("#sortSelect").value;
-  const artistSelect = $("#listArtistFilter"),
-    genreSelect = $("#listGenreFilter"),
-    // Keep a filter from the URL selectable even before matching records have synced.
-    withSelected = (values, selected) =>
-      selected === "All" || values.includes(selected) ? values : [selected, ...values],
-    artists = withSelected([...new Set(records.map((r) => r.artist).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ja")), listArtist),
-    listGenres = withSelected([...new Set(records.map((r) => r.genre).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ja")), listGenre);
+  const artistSelect = $("#artistFilter"),
+    artists = withSelected([...new Set(records.map((r) => r.artist).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ja")), artistFilter);
   artistSelect.innerHTML = `<option value="All">すべて</option>${artists.map((artist) => `<option value="${esc(artist)}">${esc(artist)}</option>`).join("")}`;
-  genreSelect.innerHTML = `<option value="All">すべて</option>${listGenres.map((genre) => `<option value="${esc(genre)}">${esc(genre)}</option>`).join("")}`;
-  artistSelect.value = listArtist;
-  genreSelect.value = listGenre;
+  artistSelect.value = artistFilter;
   const listMode = viewMode === "list";
-  $("#listControls").classList.toggle("hidden", !listMode);
-  $("#listSortDirection").textContent = listSortDirection === "desc" ? "降順 ↓" : "昇順 ↑";
-  let shown = records.filter(
+  $("#sortDirection").textContent = sortDirection === "desc" ? "降順 ↓" : "昇順 ↑";
+  const shown = records.filter(
     (r) =>
       (filter === "All" || r.genre === filter) &&
-      (!listMode || listArtist === "All" || r.artist === listArtist) &&
-      (!listMode || listGenre === "All" || r.genre === listGenre) &&
+      (artistFilter === "All" || r.artist === artistFilter) &&
       [r.artist, r.title, r.year, r.genre].join(" ").toLowerCase().includes(q),
   );
   const compare = (a, b) => {
@@ -276,16 +271,15 @@ function render() {
     if (sort === "price") return Number(a.marketPrice || 0) - Number(b.marketPrice || 0);
     return String(a.added || "").localeCompare(String(b.added || ""));
   };
-  const direction = listMode
-    ? (listSortDirection === "desc" ? -1 : 1)
-    : ["artist", "genre", "title"].includes(sort) ? 1 : -1;
+  const direction = sortDirection === "desc" ? -1 : 1;
   shown.sort((a, b) => compare(a, b) * direction);
-  $("#listResultCount").textContent = `${shown.length} / ${records.length} 枚`;
+  const filtered = Boolean(q) || filter !== "All" || artistFilter !== "All";
+  $("#resultCount").textContent = filtered ? `${shown.length} / ${records.length} 枚` : `${records.length} 枚`;
+  $("#clearFilters").hidden = !filtered;
   $("#recordGrid").innerHTML = listMode
     ? listTable(shown, sort)
     : shown.map(card).join("");
   $("#recordGrid").classList.toggle("list-view", viewMode === "list");
-  $("#sortSelect").classList.toggle("hidden", listMode);
   $("#gridViewBtn").classList.toggle("active", viewMode === "grid");
   $("#listViewBtn").classList.toggle("active", viewMode === "list");
   $("#emptyState").classList.toggle("hidden", records.length > 0);
@@ -294,10 +288,10 @@ function render() {
   document.querySelectorAll(".record-table [data-sort]").forEach((button) => {
     button.onclick = () => {
       const nextSort = button.dataset.sort;
-      if (sort === nextSort) listSortDirection = listSortDirection === "asc" ? "desc" : "asc";
+      if (sort === nextSort) sortDirection = sortDirection === "asc" ? "desc" : "asc";
       else {
         $("#sortSelect").value = nextSort;
-        listSortDirection = nextSort === "added" || nextSort === "price" ? "desc" : "asc";
+        sortDirection = defaultDirection(nextSort);
       }
       render();
     };
@@ -344,8 +338,8 @@ function listTable(shown, sort) {
   ];
   const headers = columns.map(([key, label]) => {
     const active = sort === key;
-    const arrow = active ? (listSortDirection === "asc" ? " ↑" : " ↓") : "";
-    return `<th scope="col" aria-sort="${active ? (listSortDirection === "asc" ? "ascending" : "descending") : "none"}"><button type="button" data-sort="${key}"${active ? ' class="sorted"' : ""}>${label}${arrow}</button></th>`;
+    const arrow = active ? (sortDirection === "asc" ? " ↑" : " ↓") : "";
+    return `<th scope="col" aria-sort="${active ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}"><button type="button" data-sort="${key}"${active ? ' class="sorted"' : ""}>${label}${arrow}</button></th>`;
   }).join("");
   const rows = shown.map((r) => `<tr data-id="${esc(r.id)}" tabindex="0" aria-label="${esc(r.artist)} - ${esc(r.title)}">
     <td class="record-table-cover"><img src="${r.cover || placeholder(r)}" alt="${esc(r.title)}のジャケット"></td>
@@ -808,22 +802,20 @@ function setViewMode(mode) {
 $("#gridViewBtn").onclick = () => setViewMode("grid");
 $("#listViewBtn").onclick = () => setViewMode("list");
 $("#searchInput").oninput = render;
-$("#sortSelect").onchange = render;
-$("#listArtistFilter").onchange = (e) => {
-  listArtist = e.target.value;
+$("#sortSelect").onchange = (e) => {
+  sortDirection = defaultDirection(e.target.value);
   render();
 };
-$("#listGenreFilter").onchange = (e) => {
-  listGenre = e.target.value;
+$("#artistFilter").onchange = (e) => {
+  artistFilter = e.target.value;
   render();
 };
-$("#listSortDirection").onclick = () => {
-  listSortDirection = listSortDirection === "desc" ? "asc" : "desc";
+$("#sortDirection").onclick = () => {
+  sortDirection = sortDirection === "desc" ? "asc" : "desc";
   render();
 };
-$("#clearListFilters").onclick = () => {
-  listArtist = "All";
-  listGenre = "All";
+$("#clearFilters").onclick = () => {
+  artistFilter = "All";
   $("#searchInput").value = "";
   filter = "All";
   render();
@@ -847,7 +839,7 @@ $("#exportBtn").onclick = async () => {
   toast("バックアップを書き出しました");
 };
 // URL routing. Routes live in the hash so they work on GitHub Pages:
-//   #/?q=..&genre=..&sort=..&view=list&dir=asc&artist=..&lgenre=..
+//   #/?q=..&genre=..&artist=..&sort=..&dir=asc&view=list
 //   #/record/<id>   #/record/<id>/edit   #/add   #/add/manual
 // Supabase auth redirects also use the hash (#access_token=...), so only
 // hashes starting with "#/" are treated as routes.
@@ -864,13 +856,10 @@ function routeUrl(path) {
     sort = $("#sortSelect").value;
   if (q) params.set("q", q);
   if (filter !== "All") params.set("genre", filter);
+  if (artistFilter !== "All") params.set("artist", artistFilter);
   if (sort !== "added") params.set("sort", sort);
-  if (viewMode === "list") {
-    params.set("view", "list");
-    if (listSortDirection !== "desc") params.set("dir", listSortDirection);
-    if (listArtist !== "All") params.set("artist", listArtist);
-    if (listGenre !== "All") params.set("lgenre", listGenre);
-  }
+  if (sortDirection !== defaultDirection(sort)) params.set("dir", sortDirection);
+  if (viewMode === "list") params.set("view", "list");
   const query = params.toString(),
     hash = path || query ? `#/${path}${query ? `?${query}` : ""}` : "";
   return location.pathname + location.search + hash;
@@ -903,13 +892,14 @@ function applyRoute() {
   const { path, params } = route,
     sort = params.get("sort");
   $("#searchInput").value = params.get("q") || "";
-  filter = params.get("genre") || "All";
+  // "lgenre" was the list view's separate genre filter in older links.
+  filter = params.get("genre") || params.get("lgenre") || "All";
   $("#sortSelect").value = sortValues.includes(sort) ? sort : "added";
   // Without any route the remembered view mode applies.
   if (location.hash) viewMode = params.get("view") === "list" ? "list" : "grid";
-  listSortDirection = params.get("dir") === "asc" ? "asc" : "desc";
-  listArtist = params.get("artist") || "All";
-  listGenre = params.get("lgenre") || "All";
+  const dir = params.get("dir");
+  sortDirection = dir === "asc" || dir === "desc" ? dir : defaultDirection($("#sortSelect").value);
+  artistFilter = params.get("artist") || "All";
   render();
 
   const [page, id, mode] = path,
