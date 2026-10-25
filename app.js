@@ -311,36 +311,7 @@ function render() {
       }
     };
   });
-  renderNews();
   syncRouteQuery();
-}
-function isStandalone() {
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    navigator.standalone === true
-  );
-}
-function newsUrl(r) {
-  return `https://news.google.com/search?q=${encodeURIComponent([r.artist, r.title].filter(Boolean).join(" "))}&hl=ja&gl=JP&ceid=JP:ja`;
-}
-function renderNews() {
-  const section = $("#newsSection"),
-    list = $("#newsList");
-  if (!section || !list) return;
-  section.classList.toggle("hidden", isStandalone());
-  if (isStandalone()) return;
-  const seen = new Set(),
-    items = records
-      .filter((r) => r.artist && !seen.has(r.artist) && seen.add(r.artist))
-      .slice(0, 4);
-  list.innerHTML = items.length
-    ? items
-        .map(
-          (r, i) =>
-            `<a class="news-item" href="${newsUrl(r)}" target="_blank" rel="noopener"><span class="news-no">0${i + 1}</span><div><small>${esc(r.artist)}</small><strong>${esc(r.title)}</strong><p>このアーティスト・作品の最新ニュースを検索</p></div><b>↗</b></a>`,
-        )
-        .join("")
-    : `<div class="news-empty"><strong>ニュース対象のレコードがありません</strong><p>コレクションにレコードを追加すると、関連ニュースへの入口がここに表示されます。</p></div>`;
 }
 function trackSummary(r) {
   if (!r.aTitle && !r.bTitle) return "";
