@@ -89,6 +89,10 @@ const normalizeUrl = (value: unknown) => {
 };
 // Older batch uploads stored this status text as the record's notes.
 const batchPlaceholderNote = 'ジャケット画像を登録済み。自動解析を開始します。';
+// Older app versions stored placeholder names until the AI filled them in; they are not real names.
+const knownArtist = (value: unknown) =>
+  ['AI解析待ち', 'AIリソースなし'].includes(String(value || '')) ? '' : String(value || '');
+const knownTitle = (value: unknown) => /^未解析レコード \d+$/.test(String(value || '')) ? '' : String(value || '');
 const median = (values: number[]) => {
   const sorted = values.filter((value) => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
   if (!sorted.length) return null;
@@ -166,8 +170,8 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
 
     const data = record.data && typeof record.data === 'object' ? record.data : {};
     const recordContext = {
-      artist: data.artist || '',
-      title: data.title || '',
+      artist: knownArtist(data.artist),
+      title: knownTitle(data.title),
       year: data.year || '',
       catalogNo: data.catalogNo || '',
       format: data.format || '7-inch single (if consistent with the image)',
@@ -302,8 +306,8 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
       .some((value) => String(value || '').trim()) || Number(result.year) > 0;
     const nextData = {
       ...data,
-      artist: result.artist || data.artist || 'AIリソースなし',
-      title: result.title || data.title,
+      artist: result.artist || knownArtist(data.artist),
+      title: result.title || knownTitle(data.title),
       year: Number(result.year) || Number(data.year) || 0,
       genre: result.genre || 'Other',
       catalogNo: result.catalogNo || data.catalogNo || '',

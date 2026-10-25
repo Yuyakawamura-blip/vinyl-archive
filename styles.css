@@ -237,6 +237,10 @@ select {
 .hidden {
   display: none!important;
 }
+/* A name the AI has not read yet, or could not find. */
+.unknown-name {
+  color: var(--muted);
+}
 dialog {
   border: 0;
   padding: 0;

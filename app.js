@@ -4,6 +4,22 @@ const KEY = "vinyl-archive-records-v1";
 // Earlier versions seeded four sample records with these ids; drop them on load.
 const withoutSamples = (list) =>
   (list || []).filter((record) => !String(record.id).startsWith("demo-"));
+// Older versions stored these placeholders as names until the AI filled them in.
+const placeholderArtists = ["AI解析待ち", "AIリソースなし"];
+const withoutPlaceholderNames = (list) =>
+  list.map((record) =>
+    placeholderArtists.includes(record.artist) || /^未解析レコード \d+$/.test(record.title || "")
+      ? {
+          ...record,
+          artist: placeholderArtists.includes(record.artist) ? "" : record.artist,
+          title: /^未解析レコード \d+$/.test(record.title || "") ? "" : record.title,
+        }
+      : record,
+  );
+// Records added from a photo have no names until the AI reads them; show a label instead.
+const awaitingAi = (r) => ["pending", "processing"].includes(r.aiStatus);
+const displayArtist = (r) => r.artist || (awaitingAi(r) ? "解析待ち" : "アーティスト不明");
+const displayTitle = (r) => r.title || (awaitingAi(r) ? "解析待ち" : "タイトル不明");
 let records = [];
 let filter = "All";
 let sortDirection = "desc";
@@ -203,12 +219,12 @@ async function initApp() {
     await loadCollection();
     // Records from before IndexedDB lived in localStorage.
     if (!records.length) records = JSON.parse(localStorage.getItem(KEY) || "null") || [];
-    records = withoutSamples(records);
+    records = withoutPlaceholderNames(withoutSamples(records));
     writeDatabase();
     localStorage.removeItem(KEY);
   } catch (error) {
     console.error(error);
-    records = withoutSamples(JSON.parse(localStorage.getItem(KEY) || "null"));
+    records = withoutPlaceholderNames(withoutSamples(JSON.parse(localStorage.getItem(KEY) || "null")));
     adoptDataUrlCovers();
     toast("データベースを開けないため一時保存で起動しました");
   }
@@ -271,8 +287,10 @@ function render() {
     if (sort === "price") return Number(a.marketPrice || 0) - Number(b.marketPrice || 0);
     return String(a.added || "").localeCompare(String(b.added || ""));
   };
-  const direction = sortDirection === "desc" ? -1 : 1;
-  shown.sort((a, b) => compare(a, b) * direction);
+  const direction = sortDirection === "desc" ? -1 : 1,
+    // Records without the sorted name (e.g. still being analyzed) go last either way.
+    blank = (r) => ["artist", "title", "catalogNo"].includes(sort) && !r[sort];
+  shown.sort((a, b) => blank(a) - blank(b) || compare(a, b) * direction);
   const filtered = Boolean(q) || filter !== "All" || artistFilter !== "All";
   $("#resultCount").textContent = filtered ? `${shown.length} / ${records.length} 枚` : `${records.length} 枚`;
   $("#clearFilters").hidden = !filtered;
@@ -324,7 +342,7 @@ function card(r) {
             : r.aiStatus === "no_resources"
               ? "AIリソースなし"
               : "";
-  return `<article class="card" data-id="${r.id}"><div class="cover"><img src="${r.cover || placeholder(r)}" alt="${esc(r.title)}のジャケット">${aiLabel ? `<span class="ai-status ${r.aiStatus}">${aiLabel}</span>` : ""}</div><div class="card-meta"><p>${esc(r.artist)} · ${r.year || "—"}</p><h3>${esc(r.title)}</h3>${trackSummary(r)}<div class="price-row"><span>${r.genre}</span>${marketPriceHtml(r)}</div><small class="added-date">追加日 ${esc(formatArchiveDate(r.added))}</small></div></article>`;
+  return `<article class="card" data-id="${r.id}"><div class="cover"><img src="${r.cover || placeholder(r)}" alt="${esc(displayTitle(r))}のジャケット">${aiLabel ? `<span class="ai-status ${r.aiStatus}">${aiLabel}</span>` : ""}</div><div class="card-meta"><p${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))} · ${r.year || "—"}</p><h3${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h3>${trackSummary(r)}<div class="price-row"><span>${r.genre}</span>${marketPriceHtml(r)}</div><small class="added-date">追加日 ${esc(formatArchiveDate(r.added))}</small></div></article>`;
 }
 function listTable(shown, sort) {
   const columns = [
@@ -341,17 +359,17 @@ function listTable(shown, sort) {
     const arrow = active ? (sortDirection === "asc" ? " ↑" : " ↓") : "";
     return `<th scope="col" aria-sort="${active ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}"><button type="button" data-sort="${key}"${active ? ' class="sorted"' : ""}>${label}${arrow}</button></th>`;
   }).join("");
-  const rows = shown.map((r) => `<tr data-id="${esc(r.id)}" tabindex="0" aria-label="${esc(r.artist)} - ${esc(r.title)}">
-    <td class="record-table-cover"><img src="${r.cover || placeholder(r)}" alt="${esc(r.title)}のジャケット"></td>
-    <td class="record-table-title"><strong>${esc(r.title || "タイトル不明")}</strong>${r.aiStatus === "processing" ? '<small class="record-table-status">AI解析中</small>' : ""}</td>
-    <td>${esc(r.artist || "—")}</td><td>${r.year || "—"}</td>
+  const rows = shown.map((r) => `<tr data-id="${esc(r.id)}" tabindex="0" aria-label="${esc(displayArtist(r))} - ${esc(displayTitle(r))}">
+    <td class="record-table-cover"><img src="${r.cover || placeholder(r)}" alt="${esc(displayTitle(r))}のジャケット"></td>
+    <td class="record-table-title"><strong${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</strong>${r.aiStatus === "processing" ? '<small class="record-table-status">AI解析中</small>' : ""}</td>
+    <td${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))}</td><td>${r.year || "—"}</td>
     <td>${esc(formatArchiveDate(r.added))}</td><td>${esc(r.genre || "—")}</td>
     <td>${marketPriceHtml(r)}</td><td>${esc(r.catalogNo || "—")}</td>
   </tr>`).join("");
   return `<div class="record-table-scroll"><table class="record-table"><thead><tr><th class="cover-heading" scope="col">写真</th>${headers}</tr></thead><tbody>${rows || '<tr><td class="table-no-results" colspan="8">条件に合うレコードがありません</td></tr>'}</tbody></table></div>`;
 }
 function placeholder(r) {
-  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#1d2e43"/><circle cx="430" cy="170" r="190" fill="#e94f28"/><text x="42" y="465" font-size="54" fill="#f2eee5" font-family="serif">${esc(r.title).slice(0, 16)}</text><text x="45" y="515" font-size="21" fill="#dfba62" font-family="sans-serif">${esc(r.artist)}</text></svg>`)}`;
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#1d2e43"/><circle cx="430" cy="170" r="190" fill="#e94f28"/><text x="42" y="465" font-size="54" fill="#f2eee5" font-family="serif">${esc(displayTitle(r)).slice(0, 16)}</text><text x="45" y="515" font-size="21" fill="#dfba62" font-family="sans-serif">${esc(displayArtist(r))}</text></svg>`)}`;
 }
 function youtubeSearch(r, track) {
   return `https://www.youtube.com/results?search_query=${encodeURIComponent([r.artist, track].filter(Boolean).join(" "))}`;
@@ -462,13 +480,13 @@ function saveRecordEdit(r, form) {
 function showDetail(id, editing = false) {
   const r = records.find((x) => x.id === id);
   if (!r) return;
-  const aiBusy = ["pending", "processing"].includes(r.aiStatus);
+  const aiBusy = awaitingAi(r);
   const editButton = editing
     ? ""
     : `<button type="button" class="secondary edit-btn" id="editRecord"${aiBusy ? ' disabled title="AI解析が終わると編集できます"' : ""}>編集</button>`;
   const body = editing
     ? `<div><p class="eyebrow">EDIT RECORD</p>${detailEditor(r)}</div>`
-    : `<div><p>${r.genre} · ${r.year || "年代不明"}</p><h2>${esc(r.title)}</h2><h3>${esc(r.artist)}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "自動で再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET${priceBasisLabels[r.marketPriceBasis] && Number(r.marketPrice) > 0 ? ` · ${priceBasisLabels[r.marketPriceBasis]}` : ""}</span>${marketPriceHtml(r)}</div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${r.aiNotes ? `<div class="market-research"><span>AI解析メモ</span><p>${esc(r.aiNotes)}</p></div>` : ""}${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" id="retryAnalysis">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button type="button" class="delete-btn" id="deleteRecord">このレコードを削除</button></div>`;
+    : `<div><p>${r.genre} · ${r.year || "年代不明"}</p><h2${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h2><h3${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "自動で再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET${priceBasisLabels[r.marketPriceBasis] && Number(r.marketPrice) > 0 ? ` · ${priceBasisLabels[r.marketPriceBasis]}` : ""}</span>${marketPriceHtml(r)}</div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${r.aiNotes ? `<div class="market-research"><span>AI解析メモ</span><p>${esc(r.aiNotes)}</p></div>` : ""}${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" id="retryAnalysis">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button type="button" class="delete-btn" id="deleteRecord">このレコードを削除</button></div>`;
   $("#detailContent").innerHTML =
     `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><div class="detail-head-actions">${editButton}<button type="button" class="close" id="closeDetail">×</button></div></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}">${body}</div>`;
   $("#closeDetail").onclick = () => $("#detailDialog").close();
@@ -661,10 +679,10 @@ function addBatchFiles(files) {
 function saveBatch() {
   if (!batchPhotos.length) return;
   const today = tokyoToday(),
-    created = batchPhotos.map((cover, i) => ({
+    created = batchPhotos.map((cover) => ({
       id: crypto.randomUUID(),
-      artist: "AI解析待ち",
-      title: `未解析レコード ${records.filter((r) => r.aiStatus === "pending").length + i + 1}`,
+      artist: "",
+      title: "",
       year: 0,
       genre: "Other",
       condition: "Very Good+",
@@ -905,7 +923,7 @@ function applyRoute() {
   const [page, id, mode] = path,
     record = page === "record" ? records.find((r) => r.id === id) : null;
   if (record) {
-    const busy = ["pending", "processing"].includes(record.aiStatus);
+    const busy = awaitingAi(record);
     if (mode === "edit" && busy) history.replaceState(history.state, "", routeUrl(`record/${id}`));
     showDetail(id, mode === "edit" && !busy);
   } else if ($("#detailDialog").open) $("#detailDialog").close();
@@ -949,7 +967,7 @@ const cloudSyncApi = {
     render();
   },
   replaceRecords: (next) => {
-    records = next;
+    records = withoutPlaceholderNames(next);
     writeDatabase();
     render();
     // A shared record link may arrive before the record has synced to this device.
