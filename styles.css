@@ -4,7 +4,7 @@
   --paper: #f2eee5;
   --cream: #e6dfd1;
   --orange: #e94f28;
-  --muted: #777269;
+  --muted: #635e55;
   --line: #cfc7b8;
   --green: #1f6b50;
 }
@@ -13,6 +13,11 @@
 }
 html {
   scroll-behavior: smooth;
+}
+/* Keyboard focus is always visible; text inputs show it with their underline instead. */
+:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
 }
 body {
   margin: 0;
@@ -74,7 +79,7 @@ main {
   padding: 0 4vw 80px;
 }
 .eyebrow {
-  font: 500 10px "DM Mono";
+  font: 500 11px "DM Mono";
   letter-spacing: .22em;
   color: var(--orange);
   margin: 0 0 16px;
@@ -97,7 +102,7 @@ main {
   display: block;
 }
 .stat span {
-  font: 10px "DM Mono";
+  font: 11px "DM Mono";
   letter-spacing: .12em;
   color: var(--muted);
 }
@@ -158,7 +163,7 @@ select {
   background: transparent;
   padding: 7px 12px;
   border-radius: 20px;
-  font: 10px "DM Mono";
+  font: 11px "DM Mono";
   cursor: pointer;
 }
 .chip.active {
@@ -195,7 +200,7 @@ select {
   right: 8px;
   top: 8px;
   background: var(--paper);
-  font: 9px "DM Mono";
+  font: 11px "DM Mono";
   padding: 5px 7px;
 }
 .card-meta {
@@ -312,7 +317,7 @@ dialog form,
   margin: 20px 0;
 }
 form label {
-  font: 10px "DM Mono";
+  font: 11px "DM Mono";
   letter-spacing: .05em;
   display: grid;
   gap: 7px;
@@ -331,6 +336,9 @@ form textarea {
 form input:focus,
 form textarea:focus {
   border-color: var(--orange);
+}
+.search:focus-within {
+  border-bottom-color: var(--orange);
 }
 .dialog-actions {
   display: flex;
@@ -387,7 +395,7 @@ form textarea:focus {
   padding: 12px 0;
 }
 .detail-data span {
-  font: 9px "DM Mono";
+  font: 11px "DM Mono";
   color: var(--muted);
   display: block;
 }
@@ -507,7 +515,7 @@ form textarea:focus {
   font-size: 11px;
 }
 .ai-sources > span {
-  font: 10px "DM Mono";
+  font: 11px "DM Mono";
   letter-spacing: .06em;
   color: var(--muted);
 }
@@ -554,7 +562,7 @@ form textarea:focus {
 .added-date {
   color: var(--muted);
   display: block;
-  font: 9px "DM Mono";
+  font: 11px "DM Mono";
   margin-top: 8px;
 }
 
@@ -565,7 +573,7 @@ form textarea:focus {
 }
 
 .market-research > span {
-  font: 500 10px "DM Mono";
+  font: 500 11px "DM Mono";
   letter-spacing: .08em;
 }
 
@@ -578,7 +586,7 @@ form textarea:focus {
 
 .market-research small {
   color: var(--muted);
-  font: 9px "DM Mono";
+  font: 11px "DM Mono";
 }
 
 @media (max-width: 900px) {
@@ -748,7 +756,7 @@ form textarea:focus {
 .photo-actions button {
   border: 1px solid var(--ink);
   background: transparent;
-  font: 10px "DM Mono";
+  font: 11px "DM Mono";
   padding: 9px 12px;
   cursor: pointer;
 }
@@ -758,7 +766,7 @@ form textarea:focus {
 }
 .upload-zone #uploadPrompt small {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
   margin-top: 4px;
 }
 @keyframes camera-flash {
@@ -881,7 +889,7 @@ form textarea:focus {
   padding: 0;
 }
 .grid.list-view .condition {
-  font-size: 8px;
+  font-size: 11px;
 }
 .list-view .card:hover {
   background: #e9e3d7;
@@ -964,7 +972,7 @@ form textarea:focus {
 }
 #resultCount {
   margin-left: auto;
-  font: 10px "DM Mono";
+  font: 11px "DM Mono";
 }
 #clearFilters {
   padding: 0;
@@ -994,7 +1002,7 @@ form textarea:focus {
   grid-column: 1;
   grid-row: 2;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 .grid.list-view {
   display: block;
@@ -1058,7 +1066,6 @@ form textarea:focus {
 .record-table tbody tr:hover,
 .record-table tbody tr:focus {
   background: #e1d9ca;
-  outline: none;
 }
 .record-table .record-table-cover {
   padding: 7px 11px;
@@ -1084,7 +1091,7 @@ form textarea:focus {
 .record-table-status {
   color: var(--orange);
   display: block;
-  font-size: 10px;
+  font-size: 11px;
   margin-top: 3px;
 }
 .record-table .table-no-results {
@@ -1131,7 +1138,7 @@ form textarea:focus {
   align-items: center;
   color: var(--muted);
   display: flex;
-  font-size: 10px;
+  font-size: 11px;
   gap: 7px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1141,7 +1148,7 @@ form textarea:focus {
   background: var(--ink);
   color: #fff;
   display: grid;
-  font: 9px "DM Mono";
+  font: 11px "DM Mono";
   height: 17px;
   place-items: center;
   width: 17px;
@@ -1169,7 +1176,7 @@ form textarea:focus {
   background: var(--ink);
   color: #fff;
   display: grid;
-  font: 10px "DM Mono";
+  font: 11px "DM Mono";
   height: 24px;
   place-items: center;
   width: 24px;
@@ -1189,7 +1196,7 @@ form textarea:focus {
 .listen-links a {
   border: 1px solid var(--line);
   color: var(--muted);
-  font: 9px "DM Mono";
+  font: 11px "DM Mono";
   padding: 6px 8px;
   text-decoration: none;
 }
@@ -1309,7 +1316,7 @@ form textarea:focus {
 .capture-message {
   min-height: 18px;
   color: #9bd7c1;
-  font-size: 10px;
+  font-size: 11px;
   margin: 0 0 8px;
 }
 .capture-message.error {
@@ -1358,7 +1365,7 @@ form textarea:focus {
   background: #000c;
   color: #fff;
   padding: 2px 5px;
-  font: 9px "DM Mono";
+  font: 11px "DM Mono";
 }
 .queue-actions {
   display: flex;
@@ -1399,7 +1406,7 @@ form textarea:focus {
   border: 0;
   color: var(--muted);
   cursor: pointer;
-  font: 500 10px "DM Mono";
+  font: 500 11px "DM Mono";
   padding: 10px 4px;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -1414,7 +1421,7 @@ form textarea:focus {
   color: var(--muted);
   cursor: pointer;
   display: flex;
-  font: 500 9px "DM Mono";
+  font: 500 11px "DM Mono";
   gap: 7px;
   padding: 10px;
 }
@@ -1471,7 +1478,7 @@ form textarea:focus {
   display: none;
 }
 .sync-dialog-inner form label {
-  font: 10px "DM Mono";
+  font: 11px "DM Mono";
 }
 .sync-dialog-inner form label[hidden] {
   display: none;
@@ -1539,7 +1546,7 @@ form textarea:focus {
 .sync-dialog-inner small {
   color: var(--muted);
   display: block;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.7;
 }
 @keyframes sync-pulse {
@@ -1553,7 +1560,7 @@ form textarea:focus {
     padding: 9px;
   }
   .account-status {
-    font-size: 9px;
+    font-size: 11px;
     padding: 9px 2px;
   }
   .sync-status span {
@@ -1569,7 +1576,7 @@ form textarea:focus {
 .ai-status {
   background: #111;
   color: #fff;
-  font: 500 8px "DM Mono";
+  font: 500 11px "DM Mono";
   left: 8px;
   padding: 5px 7px;
   position: absolute;

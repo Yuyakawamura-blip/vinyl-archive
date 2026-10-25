@@ -238,7 +238,17 @@ function save() {
   render();
   queueCloudSync();
 }
+// render() rebuilds the genre chips, cards and table; these attributes find the
+// rebuilt copy of whatever had keyboard focus.
+const focusKeys = ["data-genre", "data-id", "data-sort"];
+function focusedRenderKey() {
+  const element = document.activeElement;
+  if (!element?.closest("#genreRow, #recordGrid")) return null;
+  const name = focusKeys.find((key) => element.hasAttribute(key));
+  return name ? `[${name}="${CSS.escape(element.getAttribute(name))}"]` : null;
+}
 function render() {
+  const refocus = focusedRenderKey();
   const pricedRecords = records.filter((r) => Number(r.marketPrice) > 0),
     value = pricedRecords.reduce((s, r) => s + Number(r.marketPrice), 0),
     estimatedValue = pricedRecords
@@ -298,11 +308,21 @@ function render() {
     ? listTable(shown, sort)
     : shown.map(card).join("");
   $("#recordGrid").classList.toggle("list-view", viewMode === "list");
-  $("#gridViewBtn").classList.toggle("active", viewMode === "grid");
-  $("#listViewBtn").classList.toggle("active", viewMode === "list");
+  for (const [button, mode] of [[$("#gridViewBtn"), "grid"], [$("#listViewBtn"), "list"]]) {
+    button.classList.toggle("active", viewMode === mode);
+    button.setAttribute("aria-pressed", String(viewMode === mode));
+  }
   $("#emptyState").classList.toggle("hidden", records.length > 0);
   $("#recordGrid").classList.toggle("hidden", records.length === 0);
-  document.querySelectorAll(".card").forEach((c) => (c.onclick = () => navigate(`record/${c.dataset.id}`)));
+  // Cards and table rows open the record by click, Enter or Space.
+  document.querySelectorAll(".card, .record-table tbody tr[data-id]").forEach((item) => {
+    item.onclick = () => navigate(`record/${item.dataset.id}`);
+    item.onkeydown = (event) => {
+      if (event.target !== item || (event.key !== "Enter" && event.key !== " ")) return;
+      event.preventDefault();
+      navigate(`record/${item.dataset.id}`);
+    };
+  });
   document.querySelectorAll(".record-table [data-sort]").forEach((button) => {
     button.onclick = () => {
       const nextSort = button.dataset.sort;
@@ -314,15 +334,7 @@ function render() {
       render();
     };
   });
-  document.querySelectorAll(".record-table tbody tr").forEach((row) => {
-    row.onclick = () => navigate(`record/${row.dataset.id}`);
-    row.onkeydown = (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        navigate(`record/${row.dataset.id}`);
-      }
-    };
-  });
+  if (refocus) document.querySelector(`#genreRow ${refocus}, #recordGrid ${refocus}`)?.focus();
   syncRouteQuery();
 }
 function trackSummary(r) {
@@ -342,7 +354,7 @@ function card(r) {
             : r.aiStatus === "no_resources"
               ? "AIリソースなし"
               : "";
-  return `<article class="card" data-id="${r.id}"><div class="cover"><img src="${r.cover || placeholder(r)}" alt="${esc(displayTitle(r))}のジャケット">${aiLabel ? `<span class="ai-status ${r.aiStatus}">${aiLabel}</span>` : ""}</div><div class="card-meta"><p${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))} · ${r.year || "—"}</p><h3${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h3>${trackSummary(r)}<div class="price-row"><span>${r.genre}</span>${marketPriceHtml(r)}</div><small class="added-date">追加日 ${esc(formatArchiveDate(r.added))}</small></div></article>`;
+  return `<article class="card" data-id="${esc(r.id)}" tabindex="0" role="button" aria-label="${esc(displayArtist(r))} - ${esc(displayTitle(r))}"><div class="cover"><img src="${r.cover || placeholder(r)}" alt="${esc(displayTitle(r))}のジャケット">${aiLabel ? `<span class="ai-status ${r.aiStatus}">${aiLabel}</span>` : ""}</div><div class="card-meta"><p${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))} · ${r.year || "—"}</p><h3${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h3>${trackSummary(r)}<div class="price-row"><span>${r.genre}</span>${marketPriceHtml(r)}</div><small class="added-date">追加日 ${esc(formatArchiveDate(r.added))}</small></div></article>`;
 }
 function listTable(shown, sort) {
   const columns = [
@@ -488,7 +500,7 @@ function showDetail(id, editing = false) {
     ? `<div><p class="eyebrow">EDIT RECORD</p>${detailEditor(r)}</div>`
     : `<div><p>${r.genre} · ${r.year || "年代不明"}</p><h2${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h2><h3${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "自動で再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET${priceBasisLabels[r.marketPriceBasis] && Number(r.marketPrice) > 0 ? ` · ${priceBasisLabels[r.marketPriceBasis]}` : ""}</span>${marketPriceHtml(r)}</div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${r.aiNotes ? `<div class="market-research"><span>AI解析メモ</span><p>${esc(r.aiNotes)}</p></div>` : ""}${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" id="retryAnalysis">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button type="button" class="delete-btn" id="deleteRecord">このレコードを削除</button></div>`;
   $("#detailContent").innerHTML =
-    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><div class="detail-head-actions">${editButton}<button type="button" class="close" id="closeDetail">×</button></div></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}">${body}</div>`;
+    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><div class="detail-head-actions">${editButton}<button type="button" class="close" id="closeDetail" aria-label="閉じる">×</button></div></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}" alt="${esc(displayTitle(r))}のジャケット">${body}</div>`;
   $("#closeDetail").onclick = () => $("#detailDialog").close();
   if (editing) {
     const form = $("#detailEditForm");

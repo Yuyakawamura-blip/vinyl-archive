@@ -44,7 +44,7 @@
           title="同期状態を確認"
         >
           <i></i><span>同期設定中</span></button
-        ><button class="icon-btn" id="exportBtn" title="バックアップを書き出す">
+        ><button class="icon-btn" id="exportBtn" title="バックアップを書き出す" aria-label="バックアップを書き出す">
           ↗</button
         ><button class="add-btn" id="openAdd">＋ 撮影・一括追加</button>
       </div>
@@ -68,8 +68,9 @@
               >⌕
               <input
                 id="searchInput"
+                aria-label="検索"
                 placeholder="アーティスト、タイトル、年代で検索" /></label
-            ><select id="sortSelect">
+            ><select id="sortSelect" aria-label="並べ替え">
               <option value="added">追加順</option>
               <option value="artist">アーティスト順</option>
               <option value="genre">ジャンル順</option>
@@ -79,10 +80,10 @@
               <option value="price">相場順</option>
             </select>
             <button type="button" class="sort-direction" id="sortDirection" aria-label="並び順を反転">降順 ↓</button>
-            <div class="view-switch" aria-label="表示形式">
-              <button class="active" id="gridViewBtn" title="グリッド表示">
+            <div class="view-switch" role="group" aria-label="表示形式">
+              <button type="button" class="active" id="gridViewBtn" title="グリッド表示" aria-label="グリッド表示" aria-pressed="true">
                 ▦</button
-              ><button id="listViewBtn" title="リスト表示">☷</button>
+              ><button type="button" id="listViewBtn" title="リスト表示" aria-label="リスト表示" aria-pressed="false">☷</button>
             </div>
           </div>
         </div>
@@ -111,7 +112,7 @@
             <p class="eyebrow">ADD TO ARCHIVE</p>
             <h2>レコードを追加</h2>
           </div>
-          <button type="button" class="close" id="closeDialog">×</button>
+          <button type="button" class="close" id="closeDialog" aria-label="閉じる">×</button>
         </div>
         <div class="add-tabs" role="tablist" aria-label="追加方法">
           <button type="button" role="tab" id="addTabPhoto" data-add-tab="photo" aria-controls="quickCapture" aria-selected="true">
