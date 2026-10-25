@@ -1,18 +1,10 @@
-const SHELL_CACHE = "vinyl-archive-shell-v36";
+const SHELL_CACHE = "vinyl-archive-shell-v37";
 // Not versioned: cover photos stay valid across app updates.
 const COVER_CACHE = "vinyl-archive-covers";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
-  "./ai-sources.css",
-  "./market.css",
-  "./camera.css",
-  "./list-view.css",
-  "./tracks.css",
-  "./news.css",
-  "./batch.css",
-  "./sync.css",
   "./cloud-config.js",
   "./cloud-sync.js",
   "./app.js",
@@ -22,7 +14,11 @@ const VENDOR_HOSTS = ["cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic
 const COVER_PATH = "/storage/v1/object/sign/record-covers/";
 
 self.addEventListener("install", (event) =>
-  event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.addAll(ASSETS))),
+  event.waitUntil(
+    caches
+      .open(SHELL_CACHE)
+      .then((cache) => cache.addAll(ASSETS.map((path) => new Request(path, { cache: "reload" })))),
+  ),
 );
 self.addEventListener("activate", (event) =>
   event.waitUntil(
@@ -39,11 +35,12 @@ self.addEventListener("activate", (event) =>
 );
 
 // Same-origin app files: network first so updates show up, cache as offline fallback.
-// Stored without the ?v= query so old versions don't pile up.
+// "no-cache" revalidates with the server instead of trusting the HTTP cache, so
+// file names need no ?v= version. Keyed without the query string.
 async function networkFirst(request, url) {
   const key = url.origin + url.pathname;
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, { cache: "no-cache" });
     if (response.ok) (await caches.open(SHELL_CACHE)).put(key, response.clone());
     return response;
   } catch (error) {
