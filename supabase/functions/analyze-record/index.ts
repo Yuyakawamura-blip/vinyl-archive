@@ -95,6 +95,15 @@ const batchPlaceholderNote = 'ジャケット画像を登録済み。自動解�
 const knownArtist = (value: unknown) =>
   ['AI解析待ち', 'AIリソースなし'].includes(String(value || '')) ? '' : String(value || '');
 const knownTitle = (value: unknown) => /^未解析レコード \d+$/.test(String(value || '')) ? '' : String(value || '');
+// ai_error is shown in the app, so it holds a fixed message; details go to the function log.
+const retryHint = '時間をおいて自動で再試行します。続く場合は詳細画面から再調査できます。';
+const userFacingError = (error: unknown) => {
+  const status = Number(/^Gemini (\d{3}):/.exec(String((error as Error)?.message || ''))?.[1]);
+  if (status === 429) return `AIの利用が混み合っています。${retryHint}`;
+  if (status >= 500) return `AIサービスが一時的に応答していません。${retryHint}`;
+  if (String((error as {name?: string})?.name || '').startsWith('Storage')) return `写真を読み込めませんでした。${retryHint}`;
+  return `AI解析中にエラーが発生しました。${retryHint}`;
+};
 const median = (values: number[]) => {
   const sorted = values.filter((value) => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
   if (!sorted.length) return null;
@@ -157,7 +166,7 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
   if (recordError || !ownCover) {
     await client.from('records').update({
       ai_status: 'error',
-      ai_error: 'Record or cover not found',
+      ai_error: '解析する写真が見つかりませんでした。写真を登録し直してください。',
       updated_at: new Date().toISOString(),
     }).eq('id', recordId);
     return;
@@ -397,10 +406,11 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
     if (updateError) throw updateError;
     await logUsage(aiStatus);
   } catch (error) {
+    console.error('analyze-record failed', recordId, error);
     // pg_cron retries failed records a limited number of times.
     await client.from('records').update({
       ai_status: 'error',
-      ai_error: String((error as Error)?.message || error),
+      ai_error: userFacingError(error),
       updated_at: new Date().toISOString(),
     }).eq('id', recordId);
     await logUsage('error');
