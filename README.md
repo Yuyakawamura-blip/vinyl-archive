@@ -80,7 +80,7 @@ AI解析用のGemini APIキーはSupabase Edge Functionからのみ参照し、�
 
 ## 制作の前提
 
-ブラッシュアップとローンチは、[制作の前提概念](docs/development-principles.md)（AIで個人開発を完成させる11ステップ）に沿って進めます。AIエージェント向けの指示は [`CLAUDE.md`](CLAUDE.md) にあります。
+ブラッシュアップとローンチは、[制作の前提概念](docs/development-principles.md)（非エンジニアのAI個人開発の実践手順）に沿って進めます。AIエージェント向けの指示は [`CLAUDE.md`](CLAUDE.md) にあります。
 
 ## 関連ファイル
 
