@@ -78,8 +78,18 @@ SafariまたはChromeでアプリURLを開き、ブラウザの共有メニュ�
 
 AI解析用のGemini APIキーはSupabase Edge Functionからのみ参照し、ブラウザやGitHubには置きません。
 
+## 制作の前提
+
+ブラッシュアップとローンチは、[制作の前提概念と実践手順](docs/development-principles.md)に沿って進めます。PIVOT本編の全11工程をもとに、本アプリで残す成果物・完了条件・検証項目を整理しています。
+
+[出典確認メモ](docs/references/pivot-15167.md)に確認方法とタイムコードを記載し、動画内容と本アプリへの適用案を区別しています。AIエージェント共通の指示は [`AGENTS.md`](AGENTS.md)、Claude Codeの参照入口は [`CLAUDE.md`](CLAUDE.md) にあります。
+
 ## 関連ファイル
 
+- `docs/development-principles.md`：全11工程の適用、価値・原価・品質・計測の確認方針
+- `docs/references/pivot-15167.md`：動画本編の確認方法とタイムコード
+- `AGENTS.md`：AIエージェント共通の作業指針
+- `CLAUDE.md`：Claude Code向けの参照入口
 - `cloud-config.js`：ブラウザ用のSupabase URLとPublishable Key
 - `cloud-sync.js`：ログイン、自動同期、写真アップロード、AI解析の呼び出し
 - `supabase/schema.sql`：テーブル、RLS、Storageの初期スキーマ
