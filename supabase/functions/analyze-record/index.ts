@@ -68,6 +68,9 @@ const researchSchema = {
 };
 
 const geminiModel = 'gemini-3.5-flash-lite';
+// The research step (Google Search + URL Context) can run on another model,
+// set by the GEMINI_RESEARCH_MODEL secret, to compare search use and cost.
+const researchModel = Deno.env.get('GEMINI_RESEARCH_MODEL')?.trim() || geminiModel;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -186,7 +189,7 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
         record_id: recordId,
         mode: record.data?.aiResearchMode === 'price' ? 'price' : 'full',
         outcome,
-        model: geminiModel,
+        model: researchModel === geminiModel ? geminiModel : `${geminiModel} / ${researchModel}`,
         ...usage,
         duration_ms: Date.now() - startedAt,
       });
@@ -215,8 +218,8 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
       catalogNo: data.catalogNo || '',
       format: data.format || '7-inch single (if consistent with the image)',
     };
-    const modelUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`;
-    const callGemini = async (body: Record<string, unknown>) => {
+    const callGemini = async (body: Record<string, unknown>, model = geminiModel) => {
+      const modelUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
       const response = await fetch(modelUrl, {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'x-goog-api-key': geminiKey},
@@ -280,7 +283,7 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
       contents: [{parts: [{text: researchPrompt}]}],
       tools: [{google_search: {}}, {url_context: {}}],
       generationConfig: {responseMimeType: 'application/json', responseJsonSchema: researchSchema},
-    });
+    }, researchModel);
 
     const result = {
       ...identified.result,

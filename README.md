@@ -62,7 +62,7 @@ select date_trunc('month', created_at) as month, outcome,
 from public.ai_usage
 group by 1, 2
 order by 1 desc, 2;
-```AI解析はサーバー側で実行されるため、写真のアップロード後にアプリを閉じても続きます。pg_cronが1分ごとに解析待ちのレコードを処理し、失敗したものは10分以上あけて最大3回まで自動で再試行します。
+```調査ステップ（Google検索・URL Context）のモデルは、Edge Function Secret `GEMINI_RESEARCH_MODEL` にモデルID（例：`gemini-3.8-flash`）を登録すると切り替わります。未登録の場合は写真の読み取りと同じ `gemini-3.5-flash-lite` を使います。どのモデルを使ったかは `ai_usage.model` に記録されます。AI解析はサーバー側で実行されるため、写真のアップロード後にアプリを閉じても続きます。pg_cronが1分ごとに解析待ちのレコードを処理し、失敗したものは10分以上あけて最大3回まで自動で再試行します。
 
 ## iPhoneで使う
 
