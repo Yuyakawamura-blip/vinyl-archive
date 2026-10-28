@@ -297,6 +297,9 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
         sources.findIndex((item) => normalizeUrl(item.url) === normalizeUrl(source.url)) === index,
       )
       .slice(0, 8);
+    // The model can claim a verified B-side without having searched at all, so
+    // only trust the claim when the answer is backed by retrieved sources.
+    const bTitleVerified = Boolean(result.bTitle) && result.bTitleVerified && aiSources.length > 0;
 
     const retrievedUrls = new Set(retrievedUrlMetadata.map((source: {url: string}) => normalizeUrl(source.url)).filter(Boolean));
     const verifiedMarketEvidence = (Array.isArray(result.marketEvidence) ? result.marketEvidence : [])
@@ -366,7 +369,7 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
       aTitle: pick(data.aTitle || '', result.aTitle || ''),
       bTitle: pick(data.bTitle || '', result.bTitle || ''),
       bTitleVerified: (priceOnly ? !data.bTitle && result.bTitle : result.bTitle)
-        ? Boolean(result.bTitleVerified)
+        ? bTitleVerified
         : Boolean(data.bTitleVerified),
       marketPrice,
       marketPriceBasis,
@@ -389,7 +392,7 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
       // Price research leaves the record's review state as it was.
       aiNeedsReview: priceOnly
         ? Boolean(data.aiNeedsReview)
-        : Boolean(result.needsReview || (result.bTitle && !result.bTitleVerified)),
+        : Boolean(result.needsReview || (result.bTitle && !bTitleVerified)),
       aiSources,
     };
     const aiStatus = priceOnly
