@@ -99,6 +99,7 @@ const knownTitle = (value: unknown) => /^未解析レコード \d+$/.test(String
 const retryHint = '時間をおいて自動で再試行します。続く場合は詳細画面から再調査できます。';
 const userFacingError = (error: unknown) => {
   const status = Number(/^Gemini (\d{3}):/.exec(String((error as Error)?.message || ''))?.[1]);
+  if (status === 402) return `AI利用の残高が不足しています。Google AI Studioで請求設定を確認してください。`;
   if (status === 429) return `AIの利用が混み合っています。${retryHint}`;
   if (status >= 500) return `AIサービスが一時的に応答していません。${retryHint}`;
   if (String((error as {name?: string})?.name || '').startsWith('Storage')) return `写真を読み込めませんでした。${retryHint}`;
@@ -232,6 +233,19 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
       usage.tool_prompt_tokens += Number(meta.toolUsePromptTokenCount) || 0;
       // Grounding with Google Search is billed per executed query.
       usage.search_queries += candidate?.groundingMetadata?.webSearchQueries?.length || 0;
+      // Diagnostics for calls with tools: whether search and URL Context ran.
+      // Only shapes and counts are logged, never record content.
+      if (body.tools) console.log('analyze-record research', JSON.stringify({
+        modelVersion: payload.modelVersion,
+        finishReason: candidate?.finishReason,
+        candidateKeys: Object.keys(candidate || {}),
+        groundingKeys: Object.keys(candidate?.groundingMetadata || {}),
+        webSearchQueries: candidate?.groundingMetadata?.webSearchQueries?.length || 0,
+        groundingChunks: candidate?.groundingMetadata?.groundingChunks?.length || 0,
+        urlMetadata: candidate?.urlContextMetadata?.urlMetadata?.length || 0,
+        usageKeys: Object.keys(meta),
+        partKinds: (candidate?.content?.parts || []).map((part: Record<string, unknown>) => Object.keys(part).join('+')),
+      }));
       const text = candidate?.content?.parts?.[0]?.text;
       if (!text) throw new Error('Gemini returned no result');
       return {result: JSON.parse(text), candidate};
