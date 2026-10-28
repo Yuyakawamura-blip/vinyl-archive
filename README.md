@@ -78,8 +78,14 @@ SafariまたはChromeでアプリURLを開き、ブラウザの共有メニュ�
 
 AI解析用のGemini APIキーはSupabase Edge Functionからのみ参照し、ブラウザやGitHubには置きません。
 
+## 制作の前提
+
+ブラッシュアップとローンチは、[制作の前提概念](docs/development-principles.md)（AIで個人開発を完成させる11ステップ）に沿って進めます。AIエージェント向けの指示は [`CLAUDE.md`](CLAUDE.md) にあります。
+
 ## 関連ファイル
 
+- `docs/development-principles.md`：制作の前提概念と、このアプリへの当てはめ
+- `CLAUDE.md`：AIエージェント向けの作業指針
 - `cloud-config.js`：ブラウザ用のSupabase URLとPublishable Key
 - `cloud-sync.js`：ログイン、自動同期、写真アップロード、AI解析の呼び出し
 - `supabase/schema.sql`：テーブル、RLS、Storageの初期スキーマ
