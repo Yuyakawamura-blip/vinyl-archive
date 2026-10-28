@@ -145,10 +145,14 @@ Deno.serve(async (request) => {
 async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId: string) {
   const {data: record, error: recordError} = await client
     .from('records')
-    .select('id,data,cover_path')
+    .select('id,user_id,data,cover_path')
     .eq('id', recordId)
     .single();
-  if (recordError || !record?.cover_path) {
+  // Users can write any cover_path on their own records, and this client
+  // bypasses Storage policies, so only read photos in the owner's folder.
+  const coverName = String(record?.cover_path || '').split('/');
+  const ownCover = coverName.length === 2 && coverName[0] === record?.user_id && /^[\w-]+\.\w+$/.test(coverName[1]);
+  if (recordError || !ownCover) {
     await client.from('records').update({
       ai_status: 'error',
       ai_error: 'Record or cover not found',
