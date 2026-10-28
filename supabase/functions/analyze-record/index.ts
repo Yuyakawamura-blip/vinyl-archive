@@ -67,6 +67,8 @@ const researchSchema = {
   ],
 };
 
+const geminiModel = 'gemini-3.5-flash-lite';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -161,6 +163,29 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
     return;
   }
 
+  // One ai_usage row per attempt, failures included, to measure what analysis
+  // costs. Only counts are stored: no image, prompt, query text or result.
+  const startedAt = Date.now();
+  const usage = {gemini_calls: 0, prompt_tokens: 0, output_tokens: 0, tool_prompt_tokens: 0, search_queries: 0};
+  const logUsage = async (outcome: string) => {
+    if (!usage.gemini_calls) return;
+    // A failed log must not turn a finished analysis into an error.
+    try {
+      const {error} = await client.from('ai_usage').insert({
+        user_id: record.user_id,
+        record_id: recordId,
+        mode: record.data?.aiResearchMode === 'price' ? 'price' : 'full',
+        outcome,
+        model: geminiModel,
+        ...usage,
+        duration_ms: Date.now() - startedAt,
+      });
+      if (error) console.error('ai_usage insert failed', error.message);
+    } catch (error) {
+      console.error('ai_usage insert failed', error);
+    }
+  };
+
   try {
     const {data: file, error: fileError} = await client.storage
       .from('record-covers')
@@ -180,7 +205,7 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
       catalogNo: data.catalogNo || '',
       format: data.format || '7-inch single (if consistent with the image)',
     };
-    const modelUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent';
+    const modelUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`;
     const callGemini = async (body: Record<string, unknown>) => {
       const response = await fetch(modelUrl, {
         method: 'POST',
@@ -190,6 +215,14 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
       if (!response.ok) throw new Error(`Gemini ${response.status}: ${await response.text()}`);
       const payload = await response.json();
       const candidate = payload.candidates?.[0];
+      const meta = payload.usageMetadata || {};
+      usage.gemini_calls += 1;
+      usage.prompt_tokens += Number(meta.promptTokenCount) || 0;
+      // Thinking tokens are billed as output.
+      usage.output_tokens += (Number(meta.candidatesTokenCount) || 0) + (Number(meta.thoughtsTokenCount) || 0);
+      usage.tool_prompt_tokens += Number(meta.toolUsePromptTokenCount) || 0;
+      // Grounding with Google Search is billed per executed query.
+      usage.search_queries += candidate?.groundingMetadata?.webSearchQueries?.length || 0;
       const text = candidate?.content?.parts?.[0]?.text;
       if (!text) throw new Error('Gemini returned no result');
       return {result: JSON.parse(text), candidate};
@@ -362,6 +395,7 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
       updated_at: new Date().toISOString(),
     }).eq('id', recordId);
     if (updateError) throw updateError;
+    await logUsage(aiStatus);
   } catch (error) {
     // pg_cron retries failed records a limited number of times.
     await client.from('records').update({
@@ -369,5 +403,6 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
       ai_error: String((error as Error)?.message || error),
       updated_at: new Date().toISOString(),
     }).eq('id', recordId);
+    await logUsage('error');
   }
 }

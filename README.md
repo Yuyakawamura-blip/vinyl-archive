@@ -27,6 +27,7 @@ AIは画像の文字を読み取り、Google検索で同じリリースの曲目
 - `public.records` テーブルとユーザーごとのRow Level Securityポリシー
 - 非公開の `record-covers` Storageバケットとユーザーごとのアクセス制御
 - `analyze-record` Edge Function
+- AI解析の試行ごとの利用量を記録する `public.ai_usage` テーブル（自分の分だけ閲覧可）
 - Edge Function Secret `GEMINI_API_KEY`（Google Search Groundingを有効にしたGemini APIプロジェクト）
 
 ### プロジェクトを新しく設定する場合
@@ -47,7 +48,21 @@ AIは画像の文字を読み取り、Google検索で同じリリースの曲目
    `analyze-record` は `supabase/config.toml` の設定によりゲートウェイのJWT確認を行わず、関数内でユーザーのログインまたは上記の文字列を確認します。
 8. GitHub Pagesで `main` ブランチのルートを公開元に設定し、アプリURLを開いてログインと同期を確認します。
 
-Gemini APIの利用枠や速度制限はGoogle AI Studio側のアカウントとプロジェクトの条件に従います。Google Search GroundingはGemini 3系のFree TierではAPI利用できず、課金対象Tierで月5,000検索リクエストまでは無料、それを超えると1,000リクエストあたり14米ドルです。1回の解析で複数の検索が実行される場合があります。また、URL Contextで取得した商品ページの内容はGeminiの入力トークンとして計上されます。費用と利用状況をGoogle AI Studioで確認してください。AI解析はサーバー側で実行されるため、写真のアップロード後にアプリを閉じても続きます。pg_cronが1分ごとに解析待ちのレコードを処理し、失敗したものは10分以上あけて最大3回まで自動で再試行します。
+Gemini APIの利用枠や速度制限はGoogle AI Studio側のアカウントとプロジェクトの条件に従います。Google Search GroundingはGemini 3系のFree TierではAPI利用できず、課金対象Tierで月5,000検索リクエストまでは無料、それを超えると1,000リクエストあたり14米ドルです。1回の解析で複数の検索が実行される場合があります。また、URL Contextで取得した商品ページの内容はGeminiの入力トークンとして計上されます。費用と利用状況をGoogle AI Studioで確認してください。
+
+### AI解析の利用量を確かめる
+
+`analyze-record` は解析を1回試すごとに、成否、Gemini呼び出し回数、入力・出力・ツール入力のトークン数、実行された検索クエリ数、所要時間を `public.ai_usage` に記録します。失敗と再試行も1件ずつ残ります。画像、プロンプト、検索語、解析結果は保存しません。単価は掛けていないため、費用はGoogleの公式料金と照合して算出します。SQL Editorで次のように月別に集計できます。
+
+```sql
+select date_trunc('month', created_at) as month, outcome,
+       count(*) as attempts, sum(search_queries) as searches,
+       sum(prompt_tokens + tool_prompt_tokens) as input_tokens, sum(output_tokens) as output_tokens,
+       round(avg(duration_ms) / 1000.0, 1) as avg_seconds
+from public.ai_usage
+group by 1, 2
+order by 1 desc, 2;
+```AI解析はサーバー側で実行されるため、写真のアップロード後にアプリを閉じても続きます。pg_cronが1分ごとに解析待ちのレコードを処理し、失敗したものは10分以上あけて最大3回まで自動で再試行します。
 
 ## iPhoneで使う
 
@@ -95,4 +110,4 @@ AI解析用のGemini APIキーはSupabase Edge Functionからのみ参照し、�
 - `supabase/schema.sql`：テーブル、RLS、Storageの初期スキーマ
 - `supabase/functions/analyze-record/index.ts`：Gemini画像解析、Google検索照合、出典保存
 - `supabase/config.toml`：Edge Functionの設定（`analyze-record` のJWT確認を関数内で行う）
-- `supabase/migrations/`：スキーマ変更の履歴
+- `supabase/migrations/`：スキーマ変更の履歴（`20261028000000_ai_usage.sql` でAI解析の利用量記録を追加）
