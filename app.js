@@ -1069,5 +1069,11 @@ const cloudSyncApi = {
     if (!$("#detailDialog").open && parseRoute()?.path[0] === "record") applyRoute();
   },
   notify: toast,
+  // Drops every record of the current collection from this device.
+  clearRecords: () => {
+    records = [];
+    render();
+    return writeDatabase();
+  },
 };
 initApp().then(() => initCloudSync(cloudSyncApi));

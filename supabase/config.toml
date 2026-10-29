@@ -5,3 +5,8 @@ project_id = "vinyl-archive"
 # check must stay off.
 [functions.analyze-record]
 verify_jwt = false
+
+# delete-account checks the caller's session itself (auth.getUser), like
+# analyze-record, so it does not depend on the gateway's JWT check.
+[functions.delete-account]
+verify_jwt = false

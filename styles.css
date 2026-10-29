@@ -1794,3 +1794,8 @@ form textarea:focus {
 .doc-back {
   margin-top: 48px;
 }
+.account-delete {
+  color: var(--red);
+  display: block;
+  margin-top: 16px;
+}

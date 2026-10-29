@@ -717,6 +717,38 @@ $("#accountLogout")?.addEventListener("click", async (event) => {
     button.disabled = false;
   }
 });
+// Deleting the account removes it on the server (delete-account Edge Function)
+// and then this device's copy, so nothing of the account is left behind.
+$("#accountDelete")?.addEventListener("click", async (event) => {
+  const button = event.currentTarget,
+    email = currentUser?.email || "";
+  const typed = window.prompt(
+    `アカウントを削除すると、すべてのレコードと写真がサーバーとこの端末から消え、元に戻せません。残したい場合は、先に画面右上の「バックアップを書き出す」で保存してください。\n\n削除するには、メールアドレス（${email}）を入力してください。`,
+  );
+  if (typed === null) return;
+  if (typed.trim().toLowerCase() !== email.toLowerCase()) {
+    app.notify("メールアドレスが一致しないため、削除しませんでした");
+    return;
+  }
+  button.disabled = true;
+  try {
+    const { error } = await client.functions.invoke("delete-account", { method: "POST" });
+    if (error) throw error;
+    setPendingDeletes([]);
+    await app.clearRecords();
+    localStorage.removeItem(lastCloudUserKey);
+    await window.caches?.delete(coverCacheName).catch(() => {});
+    // The user no longer exists on the server; only end the local session.
+    await client.auth.signOut({ scope: "local" });
+    $("#syncDialog")?.close();
+    app.notify("アカウントとデータを削除しました");
+  } catch (error) {
+    console.error("Could not delete the account", error);
+    app.notify("アカウントを削除できませんでした。時間をおいてもう一度お試しください");
+  } finally {
+    button.disabled = false;
+  }
+});
 $("#syncStatus")?.addEventListener("click", () => {
   if (!configured)
     return app?.notify("クラウド同期の接続設定中です");
