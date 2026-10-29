@@ -176,6 +176,12 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
     return;
   }
 
+  // New photos are only read ("read"); web research for tracks and prices runs
+  // when the user asks for it ("full" from the detail view, "price" in bulk).
+  const researchMode = record.data?.aiResearchMode;
+  const mode = researchMode === 'price' || researchMode === 'full' ? researchMode : 'read';
+  const quotaKind = mode === 'read' ? 'read' : 'research';
+
   // One ai_usage row per attempt, failures included, to measure what analysis
   // costs. Only counts are stored: no image, prompt, query text or result.
   const startedAt = Date.now();
@@ -187,9 +193,9 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
       const {error} = await client.from('ai_usage').insert({
         user_id: record.user_id,
         record_id: recordId,
-        mode: record.data?.aiResearchMode === 'price' ? 'price' : 'full',
+        mode,
         outcome,
-        model: researchModel === geminiModel ? geminiModel : `${geminiModel} / ${researchModel}`,
+        model: mode === 'read' || researchModel === geminiModel ? geminiModel : `${geminiModel} / ${researchModel}`,
         ...usage,
         duration_ms: Date.now() - startedAt,
       });
@@ -198,6 +204,23 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
       console.error('ai_usage insert failed', error);
     }
   };
+
+  // The monthly quota is counted in the database before any Gemini call.
+  const {data: allowed, error: quotaError} = await client.rpc('consume_ai_quota', {p_user: record.user_id, p_kind: quotaKind});
+  if (quotaError || !allowed) {
+    if (quotaError) console.error('consume_ai_quota failed', recordId, quotaError.message);
+    const {data: limit} = await client.rpc('ai_quota_limit', {p_user: record.user_id, p_kind: quotaKind});
+    await client.from('records').update({
+      ai_status: 'error',
+      ai_error: quotaError
+        ? `AI解析を開始できませんでした。${retryHint}`
+        : quotaKind === 'read'
+          ? `今月の写真読み取りの上限（${limit}枚）に達しました。来月1日から詳細画面で解析できます。`
+          : `今月のAI調査の上限（${limit}回）に達しました。来月1日から再調査できます。`,
+      updated_at: new Date().toISOString(),
+    }).eq('id', recordId);
+    return;
+  }
 
   try {
     const {data: file, error: fileError} = await client.storage
@@ -262,6 +285,44 @@ async function analyzeRecord(client: SupabaseClient, geminiKey: string, recordId
       ]}],
       generationConfig: {responseMimeType: 'application/json', responseJsonSchema: identificationSchema},
     });
+
+    if (mode === 'read') {
+      const read = identified.result;
+      const hasUsefulRead = [read.artist, read.title, read.catalogNo, read.aTitle, read.bTitle]
+        .some((value) => String(value || '').trim()) || Number(read.year) > 0;
+      const needsReview = !read.artist || !read.title || Number(read.confidence) < 0.75;
+      const readData = {
+        ...data,
+        aiResearchMode: undefined,
+        artist: read.artist || knownArtist(data.artist),
+        title: read.title || knownTitle(data.title),
+        year: Number(read.year) || Number(data.year) || 0,
+        genre: data.genre && data.genre !== 'Other' ? data.genre : read.genre || 'Other',
+        catalogNo: read.catalogNo || data.catalogNo || '',
+        aTitle: read.aTitle || data.aTitle || '',
+        // A B-side read from the photo has not been checked against any source.
+        bTitle: read.bTitle || data.bTitle || '',
+        bTitleVerified: read.bTitle ? false : Boolean(data.bTitleVerified),
+        notes: data.notes === batchPlaceholderNote ? '' : data.notes || '',
+        aiNotes: [
+          read.notes,
+          !hasUsefulRead ? '写真からレコード情報を読み取れませんでした。' : '',
+          `AI信頼度 ${Math.round((Number(read.confidence) || 0) * 100)}%`,
+        ].filter(Boolean).join(' / '),
+        aiConfidence: Number(read.confidence) || 0,
+        aiNeedsReview: needsReview,
+      };
+      const readStatus = !hasUsefulRead ? 'no_resources' : needsReview ? 'review' : 'complete';
+      const {error: readError} = await client.from('records').update({
+        data: readData,
+        ai_status: readStatus,
+        ai_error: null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', recordId);
+      if (readError) throw readError;
+      await logUsage(readStatus);
+      return;
+    }
 
     const researchContext = {existing: recordContext, imageRead: identified.result};
     const researchPrompt = `あなたは日本盤レコードのディスコグラフィーと中古市場を調べるリサーチャーです。画像OCR結果と既存情報をGoogle検索で独立して検証してください。

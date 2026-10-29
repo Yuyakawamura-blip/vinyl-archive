@@ -6,6 +6,7 @@ import {
   deleteUndoMs,
   retryCloudAnalysis,
   requestPriceResearch,
+  researchRemaining,
 } from "./cloud-sync.js";
 
 const KEY = "vinyl-archive-records-v1";
@@ -525,7 +526,7 @@ function showDetail(id, editing = false) {
     : `<button type="button" class="secondary edit-btn" id="editRecord"${aiBusy ? ' disabled title="AI解析が終わると編集できます"' : ""}>編集</button>`;
   const body = editing
     ? `<div><p class="eyebrow">EDIT RECORD</p>${detailEditor(r)}</div>`
-    : `<div>${aiStatusBadge(r)}<p>${esc(r.genre)} · ${esc(r.year || "年代不明")}</p><h2${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h2><h3${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "自動で再試行します")}</p>` : ""}${aiStatusNotes[r.aiStatus] ? `<p class="ai-note">${aiStatusNotes[r.aiStatus]}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET${priceBasisLabels[r.marketPriceBasis] && Number(r.marketPrice) > 0 ? ` · ${priceBasisLabels[r.marketPriceBasis]}` : ""}</span>${marketPriceHtml(r)}</div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${r.aiNotes ? `<div class="market-research"><span>AI解析メモ</span><p>${esc(r.aiNotes)}</p></div>` : ""}${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" id="retryAnalysis">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button type="button" class="delete-btn" id="deleteRecord">このレコードを削除</button></div>`;
+    : `<div>${aiStatusBadge(r)}<p>${esc(r.genre)} · ${esc(r.year || "年代不明")}</p><h2${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h2><h3${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "自動で再試行します")}</p>` : ""}${aiStatusNotes[r.aiStatus] ? `<p class="ai-note">${aiStatusNotes[r.aiStatus]}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET${priceBasisLabels[r.marketPriceBasis] && Number(r.marketPrice) > 0 ? ` · ${priceBasisLabels[r.marketPriceBasis]}` : ""}</span>${marketPriceHtml(r)}</div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${r.aiNotes ? `<div class="market-research"><span>AI解析メモ</span><p>${esc(r.aiNotes)}</p></div>` : ""}${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" id="retryAnalysis">AIで曲目・市場価格を調べる${researchRemaining() === null ? "" : `（今月あと${researchRemaining()}回）`}</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button type="button" class="delete-btn" id="deleteRecord">このレコードを削除</button></div>`;
   $("#detailContent").innerHTML =
     `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><div class="detail-head-actions">${editButton}<button type="button" class="close" id="closeDetail" aria-label="閉じる">×</button></div></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}" alt="${esc(displayTitle(r))}のジャケット">${body}</div>`;
   $("#closeDetail").onclick = () => $("#detailDialog").close();
@@ -545,15 +546,21 @@ function showDetail(id, editing = false) {
   if (!$("#detailDialog").open) $("#detailDialog").showModal();
 }
 function researchUnpriced(ids) {
-  const minutes = Math.ceil(ids.length / 3);
+  const remaining = researchRemaining();
+  if (remaining === 0) {
+    toast("今月のAI調査の上限に達しました。来月1日から調査できます");
+    return;
+  }
+  const count = remaining === null ? ids.length : Math.min(ids.length, remaining),
+    minutes = Math.ceil(count / 3);
   if (
     !confirm(
-      `参考価格が未調査の${ids.length}件を、Geminiとウェブ検索で再調査します。アーティスト名・タイトル・曲名など入力済みの項目は変更せず、参考価格と調査メモだけを更新します。\n\n1件ごとに複数回の検索が発生し、月5,000回の無料検索枠を超えると課金対象になる可能性があります。サーバーが1分に3件ずつ処理するため、完了まで約${minutes}分かかります。実行しますか？`,
+      `${count < ids.length ? `価格が未調査の${ids.length}件のうち、今月の残り回数分の${count}件` : `価格が未調査の${count}件`}を、AIがウェブで調べます。入力済みの名前や曲名は変えず、価格と調査メモだけを更新します。\n\n1分に3件ずつ処理するため、約${minutes}分かかります。実行しますか？`,
     )
   )
     return;
-  if (!requestPriceResearch(ids)) return;
-  toast(`${ids.length}件の価格調査を予約しました。約${minutes}分で完了します`);
+  const queued = requestPriceResearch(ids);
+  if (queued) toast(`${queued}件の価格調査を予約しました。約${Math.ceil(queued / 3)}分で完了します`);
 }
 // Deleting is immediate; the toast offers an undo until the cloud delete runs.
 function removeRecord(id) {

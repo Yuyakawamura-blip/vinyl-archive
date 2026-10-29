@@ -145,6 +145,34 @@ async function uploadRecord(record, existingRecord = null) {
   record.aiRetryRequested = false;
 }
 
+// This month's AI quota for the signed-in user, by kind ("read", "research").
+// The server enforces it; the app only shows it and avoids queueing past it.
+let aiQuota = null;
+async function refreshAiQuota() {
+  if (!currentUser) {
+    aiQuota = null;
+    return;
+  }
+  const { data, error } = await client.rpc("my_ai_quota");
+  if (error) {
+    console.warn("Could not load the AI quota", error);
+    return;
+  }
+  aiQuota = Object.fromEntries((data || []).map((row) => [row.kind, row]));
+}
+const queuedResearch = () =>
+  localRecords().filter(
+    (record) =>
+      ["full", "price"].includes(record.aiResearchMode) &&
+      ["pending", "processing"].includes(record.aiStatus),
+  ).length;
+// Web research runs left this month, minus what is already queued; null when unknown.
+export function researchRemaining() {
+  const research = aiQuota?.research;
+  if (!currentUser || !research) return null;
+  return Math.max(0, research.quota - research.used - queuedResearch());
+}
+
 // The server analyzes pending records on its own (pg_cron, every minute);
 // this only asks it to start right away, so a failure here is not an error.
 async function startAnalysis(record) {
@@ -304,6 +332,7 @@ async function syncAll() {
     // Upload every photo and persist every record before asking the server to
     // start; iOS may suspend the page as soon as it locks.
     await Promise.all(analyses);
+    await refreshAiQuota();
     await downloadRecords();
     if (failedUploads.length) {
       const downloaded = app.getRecords();
@@ -547,27 +576,37 @@ export function retryCloudAnalysis(recordId) {
     app.notify("ログインとジャケット写真が必要です");
     return;
   }
+  const remaining = researchRemaining();
+  if (remaining === 0) {
+    app.notify("今月のAI調査の上限に達しました。来月1日から調査できます");
+    return;
+  }
   if (
     !window.confirm(
-      "画像をGeminiへ送り、Google検索で落札履歴を探したうえで候補の商品詳細ページも読み込み、B面の曲目と市場価格を調査します。1回の調査で複数の検索リクエストが発生し、商品ページの読み取りにもAI使用量がかかります。月5,000回の無料検索枠を超えた場合などに課金対象となる可能性があります。再調査しますか？",
+      `ジャケット写真をもとに、AIがウェブで曲目（B面を含む）と市場価格を調べます。${remaining === null ? "" : `今月の残り${remaining}回のうち1回を使います。`}調査しますか？`,
     )
   )
     return;
-  record.aiStatus = "pending";
-  record.aiError = null;
-  record.aiRetryRequested = true;
+  Object.assign(record, {
+    aiStatus: "pending",
+    aiError: null,
+    aiRetryRequested: true,
+    aiResearchMode: "full",
+    syncStatus: "pending",
+  });
   app.replaceRecords(app.getRecords());
   document.querySelector("#detailDialog")?.close();
   syncAll();
 }
 // Queue price-only research for many records; the AI keeps their existing names.
-// Returns whether anything was queued.
+// Queues no more than this month's remaining research runs; returns how many were queued.
 export function requestPriceResearch(recordIds) {
   if (!currentUser) {
     app.notify("価格調査にはログインが必要です");
-    return false;
+    return 0;
   }
-  const ids = new Set(recordIds);
+  const remaining = researchRemaining();
+  const ids = new Set(remaining === null ? recordIds : recordIds.slice(0, remaining));
   for (const record of localRecords()) {
     if (!ids.has(record.id) || !record.coverPath) continue;
     Object.assign(record, {
@@ -580,7 +619,7 @@ export function requestPriceResearch(recordIds) {
   }
   app.replaceRecords(app.getRecords());
   syncAll();
-  return true;
+  return ids.size;
 }
 export function deleteCloudRecord(id, coverPath) {
   setPendingDeletes([...pendingDeletes(), { id, coverPath, at: Date.now() }]);
