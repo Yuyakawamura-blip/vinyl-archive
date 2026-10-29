@@ -50,9 +50,26 @@ const marketPriceLabel = (record) =>
     ? `${isEstimatedPrice(record) ? "≈" : ""}${yen(record.marketPrice)}`
     : "未調査";
 const marketPriceHtml = (record) =>
-  isEstimatedPrice(record) && Number(record.marketPrice) > 0
-    ? `<b class="price-estimate" title="AIによる概算">${marketPriceLabel(record)}</b>`
-    : `<b>${marketPriceLabel(record)}</b>`;
+  !(Number(record.marketPrice) > 0)
+    ? `<b class="price-none">${marketPriceLabel(record)}</b>`
+    : isEstimatedPrice(record)
+      ? `<b class="price-estimate" title="AIによる概算">${marketPriceLabel(record)}</b>`
+      : `<b>${marketPriceLabel(record)}</b>`;
+// One badge per AI state, shared by cards, list rows and the detail view:
+// black while working, orange outline when the user should check, red on errors.
+const aiStatusLabels = {
+  pending: "AI解析待ち",
+  processing: "AI解析中",
+  review: "要確認",
+  no_resources: "情報なし",
+  error: "解析エラー",
+};
+const aiStatusBadge = (r) =>
+  aiStatusLabels[r.aiStatus] ? `<span class="ai-status ${r.aiStatus}">${aiStatusLabels[r.aiStatus]}</span>` : "";
+const aiStatusNotes = {
+  review: "AIの候補です。内容を確かめ、必要なら編集してください。",
+  no_resources: "AIが手がかりを見つけられませんでした。手入力で補ってください。",
+};
 const formatArchiveDate = (value) => {
   if (!value) return "日付不明";
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String(value))
@@ -365,19 +382,7 @@ function trackSummary(r) {
   return `<div class="mini-tracklist">${r.aTitle ? `<span><b>A</b>${esc(r.aTitle)}</span>` : ""}${r.bTitle ? `<span><b>B</b>${esc(r.bTitle)}</span>` : ""}</div>`;
 }
 function card(r) {
-  const aiLabel =
-    r.aiStatus === "processing"
-      ? "AI解析中"
-      : r.aiStatus === "review"
-        ? "AI確認待ち"
-        : r.aiStatus === "error"
-          ? "AI解析エラー"
-          : r.aiStatus === "pending"
-            ? "AI解析待ち"
-            : r.aiStatus === "no_resources"
-              ? "AIリソースなし"
-              : "";
-  return `<article class="card" data-id="${esc(r.id)}" tabindex="0" role="button" aria-label="${esc(displayArtist(r))} - ${esc(displayTitle(r))}"><div class="cover"><img src="${r.cover || placeholder(r)}" alt="${esc(displayTitle(r))}のジャケット">${aiLabel ? `<span class="ai-status ${r.aiStatus}">${aiLabel}</span>` : ""}</div><div class="card-meta"><p${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))} · ${esc(r.year || "—")}</p><h3${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h3>${trackSummary(r)}<div class="price-row"><span>${esc(r.genre)}</span>${marketPriceHtml(r)}</div><small class="added-date">追加日 ${esc(formatArchiveDate(r.added))}</small></div></article>`;
+  return `<article class="card" data-id="${esc(r.id)}" tabindex="0" role="button" aria-label="${esc(displayArtist(r))} - ${esc(displayTitle(r))}"><div class="cover"><img src="${r.cover || placeholder(r)}" alt="${esc(displayTitle(r))}のジャケット">${aiStatusBadge(r)}</div><div class="card-meta"><p${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))} · ${esc(r.year || "—")}</p><h3${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h3>${trackSummary(r)}<div class="price-row"><span>${esc(r.genre)}</span>${marketPriceHtml(r)}</div><small class="added-date">追加日 ${esc(formatArchiveDate(r.added))}</small></div></article>`;
 }
 function listTable(shown, sort) {
   const columns = [
@@ -396,7 +401,7 @@ function listTable(shown, sort) {
   }).join("");
   const rows = shown.map((r) => `<tr data-id="${esc(r.id)}" tabindex="0" aria-label="${esc(displayArtist(r))} - ${esc(displayTitle(r))}">
     <td class="record-table-cover"><img src="${r.cover || placeholder(r)}" alt="${esc(displayTitle(r))}のジャケット"></td>
-    <td class="record-table-title"><strong${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</strong>${r.aiStatus === "processing" ? '<small class="record-table-status">AI解析中</small>' : ""}</td>
+    <td class="record-table-title"><strong${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</strong>${aiStatusBadge(r)}</td>
     <td${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))}</td><td>${esc(r.year || "—")}</td>
     <td>${esc(formatArchiveDate(r.added))}</td><td>${esc(r.genre || "—")}</td>
     <td>${marketPriceHtml(r)}</td><td>${esc(r.catalogNo || "—")}</td>
@@ -520,7 +525,7 @@ function showDetail(id, editing = false) {
     : `<button type="button" class="secondary edit-btn" id="editRecord"${aiBusy ? ' disabled title="AI解析が終わると編集できます"' : ""}>編集</button>`;
   const body = editing
     ? `<div><p class="eyebrow">EDIT RECORD</p>${detailEditor(r)}</div>`
-    : `<div><p>${esc(r.genre)} · ${esc(r.year || "年代不明")}</p><h2${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h2><h3${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "自動で再試行します")}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET${priceBasisLabels[r.marketPriceBasis] && Number(r.marketPrice) > 0 ? ` · ${priceBasisLabels[r.marketPriceBasis]}` : ""}</span>${marketPriceHtml(r)}</div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${r.aiNotes ? `<div class="market-research"><span>AI解析メモ</span><p>${esc(r.aiNotes)}</p></div>` : ""}${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" id="retryAnalysis">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button type="button" class="delete-btn" id="deleteRecord">このレコードを削除</button></div>`;
+    : `<div>${aiStatusBadge(r)}<p>${esc(r.genre)} · ${esc(r.year || "年代不明")}</p><h2${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h2><h3${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "自動で再試行します")}</p>` : ""}${aiStatusNotes[r.aiStatus] ? `<p class="ai-note">${aiStatusNotes[r.aiStatus]}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET${priceBasisLabels[r.marketPriceBasis] && Number(r.marketPrice) > 0 ? ` · ${priceBasisLabels[r.marketPriceBasis]}` : ""}</span>${marketPriceHtml(r)}</div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${r.aiNotes ? `<div class="market-research"><span>AI解析メモ</span><p>${esc(r.aiNotes)}</p></div>` : ""}${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" id="retryAnalysis">AIで市場価格・曲目を再調査</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button type="button" class="delete-btn" id="deleteRecord">このレコードを削除</button></div>`;
   $("#detailContent").innerHTML =
     `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><div class="detail-head-actions">${editButton}<button type="button" class="close" id="closeDetail" aria-label="閉じる">×</button></div></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}" alt="${esc(displayTitle(r))}のジャケット">${body}</div>`;
   $("#closeDetail").onclick = () => $("#detailDialog").close();

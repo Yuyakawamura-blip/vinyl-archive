@@ -7,6 +7,9 @@
   --muted: #635e55;
   --line: #cfc7b8;
   --green: #1f6b50;
+  /* Status colors: orange text is darkened to stay readable on paper. */
+  --orange-ink: #b8391a;
+  --red: #a3261b;
 }
 * {
   box-sizing: border-box;
@@ -244,7 +247,7 @@ select {
   font: 11px "DM Mono";
 }
 .price-row b {
-  color: var(--green);
+  color: var(--ink);
 }
 .empty {
   text-align: center;
@@ -530,13 +533,18 @@ form textarea:focus {
   resize: vertical;
 }
 .detail-edit-error {
-  color: #a22;
+  color: var(--red);
   font-size: 12px;
   min-height: 1em;
   margin: 10px 0 0;
 }
+/* Prices: recorded = ink, AI estimate = needs checking (orange), none = muted. */
 .price-row b.price-estimate,
 .price-estimate {
+  color: var(--orange-ink);
+}
+.price-row b.price-none,
+.price-none {
   color: var(--muted);
   font-weight: 400;
 }
@@ -1122,11 +1130,8 @@ form textarea:focus {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.record-table-status {
-  color: var(--orange);
-  display: block;
-  font-size: 11px;
-  margin-top: 3px;
+.record-table-title .ai-status {
+  margin-top: 4px;
 }
 .record-table .table-no-results {
   color: var(--muted);
@@ -1607,29 +1612,46 @@ form textarea:focus {
     font-size: 32px;
   }
 }
+/* AI state badge: black = working, orange outline = check it, red = error. */
 .ai-status {
-  background: #111;
+  background: var(--ink);
+  border: 1px solid var(--ink);
   color: #fff;
-  font: 500 11px "DM Mono";
+  display: inline-block;
+  font: 500 11px "Noto Sans JP";
+  line-height: 1.4;
+  padding: 3px 7px;
+}
+.cover .ai-status {
   left: 8px;
-  padding: 5px 7px;
   position: absolute;
   top: 8px;
 }
-.ai-status.processing {
-  background: #d28738;
-}
 .ai-status.review,
-.ai-status.error {
-  background: var(--orange);
-}
 .ai-status.no_resources {
-  background: #64717a;
+  background: var(--paper);
+  border-color: var(--orange);
+  color: var(--orange-ink);
+}
+.ai-status.error {
+  background: var(--red);
+  border-color: var(--red);
+}
+.detail-grid .ai-status {
+  margin-bottom: 10px;
+}
+.ai-note {
+  border-left: 3px solid var(--orange);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 12px 0;
+  padding: 2px 12px;
 }
 .ai-error {
   background: #fff0e9;
-  border-left: 3px solid var(--orange);
-  color: #8a2e17;
+  border-left: 3px solid var(--red);
+  color: var(--red);
   font-size: 13px;
   line-height: 1.6;
   margin: 12px 0;
