@@ -383,7 +383,7 @@ function trackSummary(r) {
   return `<div class="mini-tracklist">${r.aTitle ? `<span><b>A</b>${esc(r.aTitle)}</span>` : ""}${r.bTitle ? `<span><b>B</b>${esc(r.bTitle)}</span>` : ""}</div>`;
 }
 function card(r) {
-  return `<article class="card" data-id="${esc(r.id)}" tabindex="0" role="button" aria-label="${esc(displayArtist(r))} - ${esc(displayTitle(r))}"><div class="cover"><img src="${r.cover || placeholder(r)}" alt="${esc(displayTitle(r))}のジャケット">${aiStatusBadge(r)}</div><div class="card-meta"><p${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))} · ${esc(r.year || "—")}</p><h3${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h3>${trackSummary(r)}<div class="price-row"><span>${esc(r.genre)}</span>${marketPriceHtml(r)}</div><small class="added-date">追加日 ${esc(formatArchiveDate(r.added))}</small></div></article>`;
+  return `<article class="card" data-id="${esc(r.id)}" tabindex="0" role="button" aria-label="${esc(displayArtist(r))} - ${esc(displayTitle(r))}"><div class="cover"><img src="${esc(r.cover || placeholder(r))}" alt="${esc(displayTitle(r))}のジャケット">${aiStatusBadge(r)}</div><div class="card-meta"><p${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))} · ${esc(r.year || "—")}</p><h3${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h3>${trackSummary(r)}<div class="price-row"><span>${esc(r.genre)}</span>${marketPriceHtml(r)}</div><small class="added-date">追加日 ${esc(formatArchiveDate(r.added))}</small></div></article>`;
 }
 function listTable(shown, sort) {
   const columns = [
@@ -401,7 +401,7 @@ function listTable(shown, sort) {
     return `<th scope="col" aria-sort="${active ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}"><button type="button" data-sort="${key}"${active ? ' class="sorted"' : ""}>${label}${arrow}</button></th>`;
   }).join("");
   const rows = shown.map((r) => `<tr data-id="${esc(r.id)}" tabindex="0" aria-label="${esc(displayArtist(r))} - ${esc(displayTitle(r))}">
-    <td class="record-table-cover"><img src="${r.cover || placeholder(r)}" alt="${esc(displayTitle(r))}のジャケット"></td>
+    <td class="record-table-cover"><img src="${esc(r.cover || placeholder(r))}" alt="${esc(displayTitle(r))}のジャケット"></td>
     <td class="record-table-title"><strong${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</strong>${aiStatusBadge(r)}</td>
     <td${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))}</td><td>${esc(r.year || "—")}</td>
     <td>${esc(formatArchiveDate(r.added))}</td><td>${esc(r.genre || "—")}</td>
@@ -528,7 +528,7 @@ function showDetail(id, editing = false) {
     ? `<div><p class="eyebrow">EDIT RECORD</p>${detailEditor(r)}</div>`
     : `<div>${aiStatusBadge(r)}<p>${esc(r.genre)} · ${esc(r.year || "年代不明")}</p><h2${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h2><h3${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "自動で再試行します")}</p>` : ""}${aiStatusNotes[r.aiStatus] ? `<p class="ai-note">${aiStatusNotes[r.aiStatus]}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET${priceBasisLabels[r.marketPriceBasis] && Number(r.marketPrice) > 0 ? ` · ${priceBasisLabels[r.marketPriceBasis]}` : ""}</span>${marketPriceHtml(r)}</div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${r.aiNotes ? `<div class="market-research"><span>AI解析メモ</span><p>${esc(r.aiNotes)}</p></div>` : ""}${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" id="retryAnalysis">AIで曲目・市場価格を調べる${researchRemaining() === null ? "" : `（今月あと${researchRemaining()}回）`}</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button type="button" class="delete-btn" id="deleteRecord">このレコードを削除</button></div>`;
   $("#detailContent").innerHTML =
-    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><div class="detail-head-actions">${editButton}<button type="button" class="close" id="closeDetail" aria-label="閉じる">×</button></div></div><div class="detail-grid"><img src="${r.cover || placeholder(r)}" alt="${esc(displayTitle(r))}のジャケット">${body}</div>`;
+    `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><div class="detail-head-actions">${editButton}<button type="button" class="close" id="closeDetail" aria-label="閉じる">×</button></div></div><div class="detail-grid"><img src="${esc(r.cover || placeholder(r))}" alt="${esc(displayTitle(r))}のジャケット">${body}</div>`;
   $("#closeDetail").onclick = () => $("#detailDialog").close();
   if (editing) {
     const form = $("#detailEditForm");

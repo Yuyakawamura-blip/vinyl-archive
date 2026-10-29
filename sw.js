@@ -1,4 +1,4 @@
-const SHELL_CACHE = "vinyl-archive-shell-v43";
+const SHELL_CACHE = "vinyl-archive-shell-v44";
 // Not versioned: cover photos stay valid across app updates.
 const COVER_CACHE = "vinyl-archive-covers";
 const ASSETS = [
