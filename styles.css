@@ -1539,6 +1539,20 @@ form textarea:focus {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+.auth-switch {
+  background: none;
+  border: 0;
+  color: var(--orange-ink);
+  cursor: pointer;
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 0;
+}
+.auth-reset[hidden],
+.auth-switch[hidden] {
+  display: none;
+}
 .local-continue {
   background: transparent;
   border: 1px solid var(--line);

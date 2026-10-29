@@ -50,8 +50,8 @@
       </div>
     </header>
     <div class="sync-hint" id="syncHint" role="region" aria-label="同期のご案内" hidden>
-      <p>ログインすると、iPhoneとパソコンで同じコレクションを使えます。</p>
-      <button type="button" class="add-btn" id="syncHintLogin">ログイン</button>
+      <p>アカウントを作ると、写真からAIが曲名を読み取り、iPhoneとパソコンで同じコレクションを使えます。</p>
+      <button type="button" class="add-btn" id="syncHintLogin">登録・ログイン</button>
       <button type="button" class="close" id="syncHintClose" aria-label="案内を閉じる">×</button>
     </div>
 
@@ -275,7 +275,7 @@
         <p class="eyebrow">AUTOMATIC CLOUD SYNC</p>
         <h2>すべての端末で、同じ棚を。</h2>
         <p>
-          ログインすると、コレクションが自動で同期されます。この端末に保存済みのレコードと写真も、ログイン後にアップロードされます。
+          アカウントを作ると、写真からAIが曲名を読み取り、コレクションがすべての端末で同期されます。この端末に保存済みのレコードと写真も、ログイン後にアップロードされます。
         </p>
         <form id="syncAuthForm">
           <label id="syncAuthEmailField"
@@ -299,8 +299,14 @@
             ログイン
           </button>
         </form>
+        <button class="auth-reset" id="syncAuthResend" type="button" hidden>
+          確認メールを再送する
+        </button>
         <button class="auth-reset" id="syncAuthReset" type="button">
           パスワードを忘れた場合
+        </button>
+        <button class="auth-switch" id="syncAuthSwitch" type="button">
+          はじめての方：アカウントを作成
         </button>
         <p class="sync-login-message" id="syncAuthMessage" role="status">
           メールアドレスとパスワードでログインしてください。

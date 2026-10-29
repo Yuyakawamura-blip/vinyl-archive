@@ -13,6 +13,8 @@ let pulling = false;
 let syncing = false;
 let rerun = false;
 let authMode = "login";
+// The address a confirmation email was last sent to, for resending it.
+let signupEmail = "";
 let activeUserId = null;
 let authTransition = Promise.resolve();
 const lastCloudUserKey = "vinyl-archive-last-cloud-user";
@@ -391,7 +393,8 @@ function setAuthMode(mode) {
   authMode = mode;
   const isReset = mode === "reset",
     isUpdate = mode === "update",
-    isAccount = mode === "account";
+    isAccount = mode === "account",
+    isSignup = mode === "signup";
   $("#syncAuthForm").hidden = isAccount;
   $("#accountPanel").hidden = !isAccount;
   $("#continueLocal").hidden = isUpdate || isAccount;
@@ -401,28 +404,45 @@ function setAuthMode(mode) {
   if (isUpdate) $("#syncAuthEmail").value = currentUser?.email || "";
   $("#syncAuthPasswordField").hidden = isReset || isAccount;
   $("#syncAuthPassword").required = !isReset && !isAccount;
-  $("#syncAuthPassword").minLength = isUpdate ? 6 : 0;
-  $("#syncAuthPassword").autocomplete = isUpdate ? "new-password" : "current-password";
+  $("#syncAuthPassword").minLength = isUpdate || isSignup ? 8 : 0;
+  $("#syncAuthPassword").autocomplete = isUpdate || isSignup ? "new-password" : "current-password";
   $("#syncAuthSubmit").textContent = isReset
     ? "再設定メールを送る"
     : isUpdate
       ? "パスワードを更新"
-      : "ログイン";
-  $("#syncAuthReset").hidden = mode !== "login" && !isReset;
-  $("#syncAuthReset").textContent = isReset ? "ログインに戻る" : "パスワードを忘れた場合";
+      : isSignup
+        ? "アカウントを作成"
+        : "ログイン";
+  $("#syncAuthReset").hidden = mode !== "login";
+  $("#syncAuthResend").hidden = !isSignup || !signupEmail;
+  $("#syncAuthSwitch").hidden = isUpdate || isAccount;
+  $("#syncAuthSwitch").textContent =
+    mode === "login" ? "はじめての方：アカウントを作成" : "ログインに戻る";
   $("#accountEmail").textContent =
     currentUser?.email || "メールアドレス未設定";
   $("#syncAuthMessage").hidden = isAccount;
   $("#syncAuthMessage").textContent = isReset
     ? "登録メールアドレスに再設定リンクを送ります。"
     : isUpdate
-      ? "新しいパスワードを設定してください。"
-      : "メールアドレスとパスワードでログインしてください。";
+      ? "新しいパスワードを設定してください（8文字以上）。"
+      : isSignup
+        ? "メールアドレスと8文字以上のパスワードを入力してください。確認メールのリンクを開くと登録が完了します。"
+        : "メールアドレスとパスワードでログインしてください。";
 }
 function authErrorMessage(error) {
   const message = String(error?.message || "");
   if (/invalid login credentials/i.test(message))
     return "メールアドレスまたはパスワードが正しくありません。";
+  if (/email not confirmed/i.test(message))
+    return "メールアドレスの確認が済んでいません。登録時に届いたメールのリンクを開いてください。";
+  if (/signups? not allowed|signup is disabled/i.test(message))
+    return "現在、新しいアカウントの登録を受け付けていません。";
+  if (/password should be|weak password/i.test(message))
+    return "パスワードは8文字以上で、推測されにくいものにしてください。";
+  if (/rate limit|too many|only request this after/i.test(message))
+    return "短時間に送信が続いたため、受け付けられませんでした。数分おいてから試してください。";
+  if (/invalid.*email|unable to validate email/i.test(message))
+    return "メールアドレスの形式を確認してください。";
   return `認証できませんでした: ${message || "不明なエラー"}`;
 }
 async function submitAuth(event) {
@@ -442,6 +462,20 @@ async function submitAuth(event) {
       if (error) throw error;
       $("#syncAuthMessage").textContent =
         "パスワード再設定メールを送信しました。メール内のリンクを開いてください。";
+    } else if (authMode === "signup") {
+      const { data, error } = await client.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: redirectTo },
+      });
+      if (error) throw error;
+      // With email confirmation on, there is no session until the link is opened.
+      if (!data.session) {
+        signupEmail = email;
+        setAuthMode("signup");
+        $("#syncAuthMessage").textContent =
+          `${email} に確認メールを送りました。メール内のリンクを開くと登録が完了します。届かない場合は迷惑メールフォルダを確認するか、再送してください。`;
+      }
     } else if (authMode === "update") {
       const { error } = await client.auth.updateUser({ password });
       if (error) throw error;
@@ -632,10 +666,27 @@ window.addEventListener("online", queueCloudSync);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") queueCloudSync();
 });
-// New sign-ups are disabled in Supabase Auth; this app has a single owner account.
-$("#syncAuthReset")?.addEventListener("click", () =>
-  setAuthMode(authMode === "reset" ? "login" : "reset"),
+$("#syncAuthReset")?.addEventListener("click", () => setAuthMode("reset"));
+$("#syncAuthSwitch")?.addEventListener("click", () =>
+  setAuthMode(authMode === "login" ? "signup" : "login"),
 );
+$("#syncAuthResend")?.addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    const { error } = await client.auth.resend({
+      type: "signup",
+      email: signupEmail,
+      options: { emailRedirectTo: `${location.origin}${location.pathname}` },
+    });
+    if (error) throw error;
+    $("#syncAuthMessage").textContent = `${signupEmail} に確認メールを再送しました。`;
+  } catch (error) {
+    $("#syncAuthMessage").textContent = authErrorMessage(error);
+  } finally {
+    button.disabled = false;
+  }
+});
 $("#syncAuthForm")?.addEventListener("submit", submitAuth);
 $("#accountStatus")?.addEventListener("click", () => {
   setAuthMode("account");
