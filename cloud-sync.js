@@ -415,6 +415,8 @@ function setAuthMode(mode) {
         : "ログイン";
   $("#syncAuthReset").hidden = mode !== "login";
   $("#syncAuthResend").hidden = !isSignup || !signupEmail;
+  $("#syncAuthConsentField").hidden = !isSignup;
+  $("#syncAuthConsent").required = isSignup;
   $("#syncAuthSwitch").hidden = isUpdate || isAccount;
   $("#syncAuthSwitch").textContent =
     mode === "login" ? "はじめての方：アカウントを作成" : "ログインに戻る";

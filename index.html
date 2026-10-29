@@ -104,6 +104,10 @@
         </div>
       </section>
     </main>
+    <footer class="site-footer">
+      <a href="privacy.html">データの扱い</a>
+      <a href="mailto:support@vinylarchive.app">問い合わせ</a>
+    </footer>
 
     <dialog id="addDialog">
       <form id="recordForm" method="dialog">
@@ -295,6 +299,11 @@
               autocomplete="current-password"
               required
           /></label>
+          <label class="auth-consent" id="syncAuthConsentField" hidden
+            ><input id="syncAuthConsent" type="checkbox" /><span
+              ><a href="privacy.html" target="_blank" rel="noopener">データの扱い</a>を読み、写真やレコードの情報を国外の事業者（Supabase、Google など）に送ることに同意します</span
+            ></label
+          >
           <button class="add-btn" id="syncAuthSubmit" type="submit">
             ログイン
           </button>

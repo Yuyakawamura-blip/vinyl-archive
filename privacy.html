@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#0c0c0c" />
+    <title>データの扱い | VINYL ARCHIVE</title>
+    <meta name="description" content="VINYL ARCHIVE が保存・送信するデータと、その目的・送信先・削除方法の説明。" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Noto+Sans+JP:wght@400;500;700&family=Playfair+Display:ital,wght@0,600;1,500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="./">VINYL<span>ARCHIVE</span></a>
+    </header>
+    <main class="doc-page">
+      <p class="eyebrow">PRIVACY</p>
+      <h1>データの扱い</h1>
+      <p class="doc-updated">最終更新：2026年10月29日</p>
+
+      <section class="doc-summary" aria-label="要点">
+        <h2>要点</h2>
+        <ul>
+          <li>ログインせずに使う場合、レコードと写真はこの端末のブラウザにだけ保存され、運営者には送られません。</li>
+          <li>アカウントを作ると、メールアドレス、レコードの情報、ジャケット写真を、Supabase のサーバー（韓国・ソウルのデータセンター）に保存します。</li>
+          <li>写真から情報を読み取るため、写真を Google の Gemini API に送ります。</li>
+          <li>AI の結果は候補です。同じ盤かどうか、曲目や価格が正しいかは、ご自身で確かめてください。</li>
+          <li>アクセス解析や広告は使っていません。</li>
+          <li>アカウントとデータは、アカウント画面からいつでも削除できます。</li>
+        </ul>
+      </section>
+
+      <h2>1. 運営者と問い合わせ先</h2>
+      <p>
+        VINYL ARCHIVE は個人が運営しています（表示名：VINYL ARCHIVE 運営者）。データの扱いに関する問い合わせ、開示・訂正・削除の請求、運営者の氏名・住所の確認は、次のアドレスへご連絡ください。
+      </p>
+      <p><a href="mailto:support@vinylarchive.app">support@vinylarchive.app</a></p>
+
+      <h2>2. 保存する情報</h2>
+      <div class="doc-table">
+        <table>
+          <thead>
+            <tr><th scope="col">情報</th><th scope="col">保存するとき</th><th scope="col">保存場所</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>メールアドレス、パスワード（元に戻せない形に変換したもの）</td><td>アカウントを作ったとき</td><td>Supabase</td></tr>
+            <tr><td>レコードの情報（アーティスト、タイトル、曲名、カタログ番号、価格、メモ、追加日など）</td><td>レコードを追加・編集したとき</td><td>Supabase（ログインしていなければ端末内のみ）</td></tr>
+            <tr><td>ジャケット写真</td><td>写真でレコードを追加したとき</td><td>Supabase の非公開の保存領域。本人のアカウントからだけ見られます</td></tr>
+            <tr><td>AI の利用量（回数、処理した文字量、所要時間、結果の種類）。写真や文章そのものは含みません</td><td>AI が解析するたび</td><td>Supabase</td></tr>
+            <tr><td>表示の設定や同期の状態</td><td>アプリを使ったとき</td><td>端末のブラウザ内</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>3. 使う目的</h2>
+      <ul>
+        <li>コレクションを保存し、同じアカウントの端末どうしで同期するため</li>
+        <li>写真からアーティスト・タイトル・曲名を読み取り、依頼に応じて曲目と市場価格を調べるため</li>
+        <li>登録の確認やパスワード再設定のメールを送るため</li>
+        <li>AI の利用回数の上限を管理し、費用と不具合を把握するため</li>
+        <li>問い合わせに対応するため</li>
+      </ul>
+      <p>上の目的のほかには使わず、法令に基づく場合を除いて、本人の同意なく第三者に提供しません。</p>
+
+      <h2>4. 外部のサービスに送る情報</h2>
+      <p>アプリを動かすため、次の事業者のサービスを使っています。いずれも日本国外の事業者で、情報は日本国外で保存・処理されます。</p>
+      <div class="doc-table">
+        <table>
+          <thead>
+            <tr><th scope="col">サービス</th><th scope="col">送る情報</th><th scope="col">目的</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Supabase（Supabase Inc.、米国。データは韓国・ソウルに保存）</td><td>2. の情報のうち、端末内のもの以外すべて</td><td>アカウント、データ、写真の保存と同期</td></tr>
+            <tr><td>Gemini API（Google LLC、米国）</td><td>ジャケット写真、レコードの情報</td><td>写真の読み取り、曲目と市場価格のウェブ調査</td></tr>
+            <tr><td>Resend（Resend, Inc.、米国。東京リージョンから送信）</td><td>メールアドレス</td><td>確認メールとパスワード再設定メールの送信</td></tr>
+            <tr><td>GitHub Pages（GitHub, Inc.、米国）、jsDelivr、Google Fonts（Google LLC、米国）</td><td>アクセス時の IP アドレスやブラウザの種類（各サービスのサーバーが記録）</td><td>アプリ本体、ライブラリ、文字の配信</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Gemini API は有料の利用条件で使っています。Google の
+        <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener">Gemini API 追加利用規約</a>
+        では、有料の利用で送られた内容を Google の製品の改善に使わないと定めています。ただし、不正な利用を検出するため、一定期間保存されます。
+      </p>
+      <p>
+        米国と韓国の個人情報の保護に関する制度は、個人情報保護委員会が公表している
+        <a href="https://www.ppc.go.jp/" target="_blank" rel="noopener">外国の制度に関する調査</a>
+        で確認できます。アカウントを作るときに、外国の事業者へのこれらの提供について同意をいただきます。
+      </p>
+
+      <h2>5. AI の結果について</h2>
+      <p>
+        AI は写真に写っている文字やウェブ上の情報から候補を作ります。写真だけで同じ盤（プレスや版）を確定することはできず、曲目や価格が誤っている場合があります。根拠のある相場、AI の概算（「≈」付き）、手入力の価格は区別して表示します。売買などの判断は、ご自身で確かめたうえで行ってください。
+      </p>
+
+      <h2>6. 保存期間と削除</h2>
+      <ul>
+        <li>アカウントがある間は、データを保存します。</li>
+        <li>レコードを削除すると、その情報と写真をサーバーから削除します。</li>
+        <li>アカウントを削除すると、アカウント、すべてのレコード、写真、AI の利用量の記録を削除します。障害に備えたバックアップに残る場合がありますが、一定期間後に消えます。</li>
+        <li>端末のブラウザ内のデータは、ブラウザのサイトデータを消すと削除されます。</li>
+      </ul>
+
+      <h2>7. このページの変更</h2>
+      <p>内容を変えるときは、このページを更新し、大きな変更はアプリ内でお知らせします。</p>
+
+      <p class="doc-back"><a href="./">アプリに戻る</a></p>
+    </main>
+  </body>
+</html>
