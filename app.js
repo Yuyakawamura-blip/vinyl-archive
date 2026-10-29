@@ -7,6 +7,8 @@ import {
   retryCloudAnalysis,
   requestPriceResearch,
   researchRemaining,
+  isSignedIn,
+  openSignup,
 } from "./cloud-sync.js";
 
 const KEY = "vinyl-archive-records-v1";
@@ -65,8 +67,14 @@ const aiStatusLabels = {
   no_resources: "情報なし",
   error: "解析エラー",
 };
+// Without an account nothing analyzes a photo until the user signs in.
+const waitingForLogin = (r) => r.aiStatus === "pending" && !isSignedIn();
 const aiStatusBadge = (r) =>
-  aiStatusLabels[r.aiStatus] ? `<span class="ai-status ${r.aiStatus}">${aiStatusLabels[r.aiStatus]}</span>` : "";
+  waitingForLogin(r)
+    ? `<span class="ai-status pending">ログイン後に解析</span>`
+    : aiStatusLabels[r.aiStatus]
+      ? `<span class="ai-status ${r.aiStatus}">${aiStatusLabels[r.aiStatus]}</span>`
+      : "";
 const aiStatusNotes = {
   review: "AIの候補です。内容を確かめ、必要なら編集してください。",
   no_resources: "AIが手がかりを見つけられませんでした。手入力で補ってください。",
@@ -354,6 +362,14 @@ function render() {
     button.setAttribute("aria-pressed", String(viewMode === mode));
   }
   $("#emptyState").classList.toggle("hidden", records.length > 0);
+  // An empty collection shows only the first-run guide, not zero totals and filters.
+  document.body.classList.toggle("collection-empty", records.length === 0);
+  // Signed in, the first-run guide only needs one way in: the camera.
+  const signedIn = isSignedIn();
+  $("#emptySignup").hidden = signedIn;
+  $("#emptyNote").hidden = signedIn;
+  $("#emptyAdd").className = signedIn ? "add-btn" : "local-continue";
+  $("#emptyAdd").textContent = signedIn ? "＋ 最初の一枚を撮る" : "ログインせずに手入力で試す";
   $("#recordGrid").classList.toggle("hidden", records.length === 0);
   // Cards and table rows open the record by click, Enter or Space.
   document.querySelectorAll(".card, .record-table tbody tr[data-id]").forEach((item) => {
@@ -526,7 +542,7 @@ function showDetail(id, editing = false) {
     : `<button type="button" class="secondary edit-btn" id="editRecord"${aiBusy ? ' disabled title="AI解析が終わると編集できます"' : ""}>編集</button>`;
   const body = editing
     ? `<div><p class="eyebrow">EDIT RECORD</p>${detailEditor(r)}</div>`
-    : `<div>${aiStatusBadge(r)}<p>${esc(r.genre)} · ${esc(r.year || "年代不明")}</p><h2${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h2><h3${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "自動で再試行します")}</p>` : ""}${aiStatusNotes[r.aiStatus] ? `<p class="ai-note">${aiStatusNotes[r.aiStatus]}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET${priceBasisLabels[r.marketPriceBasis] && Number(r.marketPrice) > 0 ? ` · ${priceBasisLabels[r.marketPriceBasis]}` : ""}</span>${marketPriceHtml(r)}</div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${r.aiNotes ? `<div class="market-research"><span>AI解析メモ</span><p>${esc(r.aiNotes)}</p></div>` : ""}${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" id="retryAnalysis">AIで曲目・市場価格を調べる${researchRemaining() === null ? "" : `（今月あと${researchRemaining()}回）`}</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button type="button" class="delete-btn" id="deleteRecord">このレコードを削除</button></div>`;
+    : `<div>${aiStatusBadge(r)}<p>${esc(r.genre)} · ${esc(r.year || "年代不明")}</p><h2${r.title ? "" : ' class="unknown-name"'}>${esc(displayTitle(r))}</h2><h3${r.artist ? "" : ' class="unknown-name"'}>${esc(displayArtist(r))}</h3><p class="record-added">追加日 <time>${esc(formatArchiveDate(r.added))}</time></p>${r.aiStatus === "error" ? `<p class="ai-error">AI解析に失敗しました: ${esc(r.aiError || "自動で再試行します")}</p>` : ""}${waitingForLogin(r) ? `<p class="ai-note">アカウントを作ってログインすると、AIがこの写真を読み取ります。</p>` : aiStatusNotes[r.aiStatus] ? `<p class="ai-note">${aiStatusNotes[r.aiStatus]}</p>` : ""}<div class="tracklist"><p class="eyebrow">TRACKS & LISTEN</p>${trackRow(r, "A", r.aTitle)}${trackRow(r, "B", r.bTitle)}</div><div class="detail-data"><div><span>MARKET${priceBasisLabels[r.marketPriceBasis] && Number(r.marketPrice) > 0 ? ` · ${priceBasisLabels[r.marketPriceBasis]}` : ""}</span>${marketPriceHtml(r)}</div></div><div class="market-research"><span>ウェブ調査</span><p>${esc(r.marketPriceNotes || (Number(r.marketPrice) > 0 ? "市場価格を記録済みです。" : "市場価格はまだ調査されていません。"))}</p><small>調査日 ${esc(r.marketPriceChecked || "—")}</small></div>${r.aiNotes ? `<div class="market-research"><span>AI解析メモ</span><p>${esc(r.aiNotes)}</p></div>` : ""}${aiSourceList(r.aiSources)}${r.coverPath ? `<button type="button" class="ai-retry" id="retryAnalysis">AIで曲目・市場価格を調べる${researchRemaining() === null ? "" : `（今月あと${researchRemaining()}回）`}</button>` : ""}<p>${esc(r.notes || "メモはありません。")}</p><button type="button" class="delete-btn" id="deleteRecord">このレコードを削除</button></div>`;
   $("#detailContent").innerHTML =
     `<div class="dialog-head"><p class="eyebrow">7-INCH ARCHIVE DETAIL</p><div class="detail-head-actions">${editButton}<button type="button" class="close" id="closeDetail" aria-label="閉じる">×</button></div></div><div class="detail-grid"><img src="${esc(r.cover || placeholder(r))}" alt="${esc(displayTitle(r))}のジャケット">${body}</div>`;
   $("#closeDetail").onclick = () => $("#detailDialog").close();
@@ -797,9 +813,16 @@ function saveBatch() {
   save();
   stopCamera();
   addDialog.close();
-  toast(`${created.length}枚を保存しました。自動同期を開始します`);
+  if (isSignedIn()) toast(`${created.length}枚を保存しました。アップロード後、AIが読み取ります`);
+  else
+    toast(`${created.length}枚をこの端末に保存しました。アカウントを作ると、AIが読み取ります`, {
+      label: "アカウントを作る",
+      run: openSignup,
+      duration: 10000,
+    });
 }
 function openAddDialog() {
+  $("#captureGuestNote").hidden = isSignedIn();
   renderCaptureQueue();
   captureMessage("");
   addDialog.showModal();
@@ -829,7 +852,13 @@ addTabs.forEach((tab, index) => {
     next.focus();
   };
 });
-$("#openAdd").onclick = $("#emptyAdd").onclick = () => navigate("add");
+$("#openAdd").onclick = () => navigate("add");
+$("#emptyAdd").onclick = () => navigate(isSignedIn() ? "add" : "add/manual");
+$("#emptySignup").onclick = openSignup;
+$("#captureGuestSignup").onclick = () => {
+  addDialog.close();
+  openSignup();
+};
 $("#closeDialog").onclick = $("#cancelDialog").onclick = () => {
   stopCamera();
   addDialog.close();

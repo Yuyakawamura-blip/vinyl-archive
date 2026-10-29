@@ -169,6 +169,13 @@ const queuedResearch = () =>
       ["pending", "processing"].includes(record.aiStatus),
   ).length;
 // Web research runs left this month, minus what is already queued; null when unknown.
+export const isSignedIn = () => Boolean(currentUser);
+// Opens the account dialog on the sign-up form (first-run guide, guest notices).
+export function openSignup() {
+  const dialog = $("#syncDialog");
+  setAuthMode("signup");
+  if (dialog && !dialog.open) dialog.showModal();
+}
 export function researchRemaining() {
   const research = aiQuota?.research;
   if (!currentUser || !research) return null;

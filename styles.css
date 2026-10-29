@@ -1799,3 +1799,95 @@ form textarea:focus {
   display: block;
   margin-top: 16px;
 }
+
+/* ---- First-run guide (empty collection) and guest notices ---- */
+.empty h3 {
+  font-size: 22px;
+  margin: 20px 0 0;
+}
+.empty-steps {
+  counter-reset: step;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none;
+  margin: 28px auto 0;
+  max-width: 720px;
+  padding: 0;
+  text-align: left;
+}
+.empty-steps li {
+  border-top: 2px solid var(--ink);
+  counter-increment: step;
+  padding-top: 10px;
+}
+.empty-steps b::before {
+  color: var(--orange-ink);
+  content: counter(step) " ";
+  font-family: "DM Mono";
+}
+.empty-steps b,
+.empty-steps span {
+  display: block;
+}
+.empty-steps span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+  margin-top: 4px;
+}
+.empty-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 28px auto 0;
+  max-width: 320px;
+}
+.empty-actions .local-continue {
+  margin-top: 0;
+}
+.empty-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+.empty-note a {
+  color: inherit;
+  margin-left: 6px;
+}
+.empty-actions [hidden],
+.empty-note[hidden],
+.capture-guest-note[hidden] {
+  display: none;
+}
+.capture-guest-note {
+  border-left: 3px solid var(--orange);
+  color: #f2eee5;
+  font-size: 12px;
+  line-height: 1.8;
+  margin: 0 0 16px;
+  padding: 2px 12px;
+}
+.capture-guest-note button {
+  background: none;
+  border: 0;
+  color: #ff9d86;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@media (max-width: 560px) {
+  .empty {
+    padding: 48px 16px;
+  }
+  .empty-steps {
+    grid-template-columns: 1fr;
+  }
+}
+.collection-empty .stats,
+.collection-empty .section-head .tools,
+.collection-empty .genre-row,
+.collection-empty .filter-bar {
+  display: none;
+}

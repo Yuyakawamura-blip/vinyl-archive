@@ -102,9 +102,19 @@
         <div class="grid" id="recordGrid"></div>
         <div class="empty hidden" id="emptyState">
           <div class="empty-disc"></div>
-          <h3>まだレコードがありません</h3>
-          <p>最初の一枚を追加して、あなたのアーカイブを始めましょう。</p>
-          <button class="add-btn" id="emptyAdd">＋ レコードを追加</button>
+          <h3>ジャケットを撮るだけで、台帳ができる。</h3>
+          <ol class="empty-steps">
+            <li><b>撮る</b><span>何枚でも続けて撮影するか、写真をまとめて選ぶ</span></li>
+            <li><b>AIが読む</b><span>アーティスト・タイトル・曲名を写真から読み取る</span></li>
+            <li><b>確かめる</b><span>「要確認」の盤は詳細で直す。曲目と相場は、知りたい盤だけAIに調べさせる</span></li>
+          </ol>
+          <div class="empty-actions">
+            <button type="button" class="add-btn" id="emptySignup">アカウントを作って始める</button>
+            <button type="button" class="local-continue" id="emptyAdd">ログインせずに手入力で試す</button>
+          </div>
+          <p class="empty-note" id="emptyNote">
+            写真からの読み取りには、アカウントが必要です。<a href="privacy.html">データの扱い</a>
+          </p>
         </div>
       </section>
     </main>
@@ -137,6 +147,10 @@
               何枚でも連続撮影し、最後にまとめてアップロードします。アップロード後、AIが写真からアーティスト・タイトル・曲名を読み取ります。B面の確認と市場価格は、詳細画面からAIに調べさせられます。
             </p>
           </div>
+          <p class="capture-guest-note" id="captureGuestNote" hidden>
+            ログインしていないため、写真はこの端末に保存され、AIの読み取りはまだ始まりません。アカウントを作ってログインすると、保存した写真も読み取ります。
+            <button type="button" id="captureGuestSignup">アカウントを作る</button>
+          </p>
           <div class="quick-actions">
             <button type="button" class="quick-camera" id="startBatchCamera">
               撮影を開始</button
